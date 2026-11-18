@@ -1,4 +1,35 @@
-:root {
+"""Templates and styles emitted by the Python site builder."""
+
+PAGE_TEMPLATE = r"""<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>$title — Голос и звук</title>
+  <link rel="stylesheet" href="${base}styles.css">
+  <script type="module" src="https://pyscript.net/releases/2026.7.3/core.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Перейти к основному содержимому</a>
+  <header>
+    <div class="shell">
+      <a class="brand" href="$base">Голос и звук<span class="sr-only">, главная</span></a>
+      <div id="keyboard-mode" hidden>
+        <button id="keyboard-toggle" type="button" aria-pressed="false" aria-describedby="keyboard-help">Стрелки и озвучивание</button>
+        <p id="keyboard-help">Вверх и вниз — выбрать пункт. Enter — открыть. Tab — обычная навигация. Escape — прервать озвучивание.</p>
+        <p id="keyboard-status" role="status"></p>
+      </div>
+    </div>
+  </header>
+  <main class="shell" id="main" tabindex="-1">
+    $content
+  </main>
+  <script type="py" src="${base}keyboard.py"></script>
+</body>
+</html>
+"""
+
+SITE_STYLES = r""":root {
   color-scheme: light dark;
   --paper: #f5f5f5;
   --panel: #fff;
@@ -50,3 +81,4 @@ button { color: var(--button-text); background: var(--accent); cursor: pointer; 
   :focus-visible, .arrow-mode :focus { outline-color: Highlight; }
   .guides a, .entry-options a, button, input { border-color: ButtonText; }
 }
+"""
