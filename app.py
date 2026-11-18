@@ -13,6 +13,7 @@ from urllib.parse import parse_qs, urlsplit
 ROOT = Path(__file__).resolve().parent
 PAGE = Template((ROOT / "page.html").read_text(encoding="utf-8"))
 CSS = (ROOT / "styles.css").read_bytes()
+INTRO_AUDIO = ROOT / "intro.wav"
 
 GUIDES = {
     "windows": (
@@ -76,7 +77,11 @@ def homepage(static=False):
     content = """
         <h1>Помощь с экранным доступом</h1>
         <p>Найдите, как включить экранный доступ и выполнить первые действия без мыши.</p>
-        <h2>Выберите устройство</h2>
+        <nav class="entry-options" aria-label="Как начать">
+          <a href="#devices">Продолжить в тишине</a>
+          <a href="intro.html">Вступление с озвучкой</a>
+        </nav>
+        <h2 id="devices" tabindex="-1">Выберите устройство</h2>
         """ + guide_links(GUIDES, static=static)
     if not static:
         content += SEARCH.format(query="")
@@ -94,12 +99,26 @@ def guide_page(key, base="/"):
         """, base=base)
 
 
+def intro_page(static=False):
+    return page("Вступление с озвучкой", """
+        <h1>Вступление с озвучкой</h1>
+        <p>Запустите запись, когда будете готовы.</p>
+        <audio controls preload="none" aria-label="Аудиозапись вступления" src="intro.wav">
+          <a href="intro.wav">Скачать аудиозапись вступления</a>
+        </audio>
+        <h2>Текст записи</h2>
+        <p>Это сайт «Голос и звук». Здесь есть инструкции для Windows, айфона и Андроида. Откройте все инструкции и выберите своё устройство.</p>
+        <p><a href="./#devices">Все инструкции по устройствам</a></p>
+        """, base="./" if static else "/")
+
+
 def build_static():
     directory = ROOT / "guides"
     directory.mkdir(exist_ok=True)
     for key in GUIDES:
         (directory / f"{key}.html").write_bytes(guide_page(key, base="../"))
     (ROOT / "index.html").write_bytes(homepage(static=True))
+    (ROOT / "intro.html").write_bytes(intro_page(static=True))
 
 
 def search_guides(query):
@@ -128,6 +147,11 @@ class Site(BaseHTTPRequestHandler):
 
         if request.path == "/":
             body = homepage()
+        elif request.path == "/intro.html":
+            body = intro_page()
+        elif request.path == "/intro.wav":
+            body = INTRO_AUDIO.read_bytes()
+            content_type = "audio/wav"
         elif request.path == "/search":
             query = parse_qs(request.query).get("q", [""])[0].strip()[:120]
             matches = search_guides(query)
