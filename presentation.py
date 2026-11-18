@@ -116,6 +116,8 @@ li + li { margin-top: .5rem; }
 .menu-link strong { font-size: 1.15rem; }
 .menu-link span { color: var(--muted); }
 #menu { display: grid; gap: .6rem; margin-block: 1.2rem .8rem; }
+#entry-intro:not(:target):not([data-open]) { display: none; }
+#entry-intro { margin-top: 1.5rem; }
 .back-link { display: inline-flex; align-items: center; min-height: 44px; }
 .key-hint { margin-block: .8rem; }
 .entry-options { display: flex; flex-wrap: wrap; gap: .65rem; padding-block: .35rem; }

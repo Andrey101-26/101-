@@ -38,7 +38,7 @@ CLIPS = {
 }
 WELCOME = (
     "Вступление",
-    "Добро пожаловать. Озвучить меню? Включите озвучивание, если хотите слышать пункты. Стрелками выберите, что вам нужно. Нажмите Enter, чтобы открыть.",
+    "Здравствуйте. Клавиша Tab переводит между пунктами. Если хотите слышать названия, включите «Озвучить меню» и выбирайте стрелками вверх и вниз. Enter открывает выбранный пункт. Escape останавливает речь.",
 )
 GUIDE_SUMMARIES = {
     "windows": "Нажмите Windows, Ctrl и Enter одновременно. Дождитесь голоса.",
@@ -114,7 +114,28 @@ def page(title, content, base="/"):
 
 
 def homepage(static=False):
-    return page("Главная", """
+    title, transcript = WELCOME
+    base = "./" if static else "/"
+    player = recording_player("intro", title, base) or (
+        '<button type="button" data-read="entry-transcript" hidden>Повторить озвучку</button>'
+    )
+    return page("Начало", f"""
+        <h1 data-dialogue-prompt="Прослушать вступление?">Прослушать вступление?</h1>
+        <nav id="menu" aria-label="Вступительная инструкция">
+          <a class="menu-link" id="entry-listen" href="#entry-intro"><strong>Прослушать вступление</strong></a>
+          <a class="menu-link" href="menu.html"><strong>Пропустить вступление</strong></a>
+        </nav>
+        <section id="entry-intro" aria-labelledby="entry-intro-heading" tabindex="-1">
+          <h2 id="entry-intro-heading" tabindex="-1">Как пользоваться сайтом</h2>
+          <p id="entry-transcript">{escape(transcript)}</p>
+          {player}
+          <p><a class="back-link" href="menu.html">Перейти к меню</a></p>
+        </section>
+        """, base=base)
+
+
+def menu_page(static=False):
+    return page("Главное меню", """
         <h1 data-dialogue-prompt="Что пожелаете?">Что хотите сделать?</h1>
         <nav id="menu" aria-label="Главное меню" tabindex="-1">
           <a id="materials" class="menu-link" href="instructions.html" aria-labelledby="instructions-label" aria-describedby="instructions-description">
@@ -151,7 +172,7 @@ def instructions_page(static=False):
         content += SEARCH.format(query="")
     return page("Инструкции", content + """
         </section>
-        <p><a class="back-link" href="./">Вернуться к меню</a></p>
+        <p><a class="back-link" href="menu.html">Вернуться к меню</a></p>
         """, base="./" if static else "/")
 
 
@@ -171,7 +192,7 @@ def file_page(static=False):
           <p id="file-summary"></p>
           <button type="button" data-read="file-summary" hidden>Озвучить главное</button>
         </section>
-        <p><a class="back-link" href="./">Вернуться к меню</a></p>
+        <p><a class="back-link" href="menu.html">Вернуться к меню</a></p>
         """, base="./" if static else "/")
 
 
@@ -183,7 +204,7 @@ def clips_page(static=False):
     return page("Короткие выпуски", f"""
         <h1 data-dialogue-prompt="Что включить?">Короткие аудиосоветы</h1>
         <ol class="guides">{items}</ol>
-        <p><a class="back-link" href="./">Вернуться к меню</a></p>
+        <p><a class="back-link" href="menu.html">Вернуться к меню</a></p>
         """, base="./" if static else "/")
 
 
@@ -202,18 +223,29 @@ def guide_page(key, base="/"):
         """, base=base)
 
 
+def recording_player(key, title, base):
+    recording, demo = find_recording(key)
+    if not recording:
+        return ""
+    src = f"{base}audio/{recording.name}"
+    note = "<p>Пробная запись синтетическим голосом.</p>" if demo else ""
+    return (
+        note + f'<audio controls preload="none" src="{src}" aria-label="{escape(title)}"></audio>'
+        f'<p><a href="{src}" download>Скачать запись</a></p>'
+    )
+
+
 def clip_page(key, base):
     title, transcript = WELCOME if key == "intro" else CLIPS[key]
-    recording, demo = find_recording(key)
-    player = "<p>Пока доступен текст выпуска.</p>"
-    if recording:
-        src = f"{base}audio/{recording.name}"
-        note = "<p>Пробная запись синтетическим голосом.</p>" if demo else ""
-        player = note + f'<audio controls preload="none" src="{src}" aria-label="{escape(title)}"></audio>'
-        player += f'<p><a href="{src}" download>Скачать запись</a></p>'
+    player = recording_player(key, title, base)
+    if not player:
+        player = (
+            '<button type="button" data-read="clip-transcript" hidden>Прослушать вступление</button>'
+            if key == "intro" else "<p>Пока доступен текст выпуска.</p>"
+        )
 
     navigation = [f'<a href="{base}clips.html">Все выпуски</a>'] if key in CLIPS else [
-        f'<a href="{base}">Перейти к меню</a>'
+        f'<a href="{base}menu.html">Перейти к меню</a>'
     ]
     if key in CLIPS:
         keys = list(CLIPS)
@@ -232,7 +264,7 @@ def clip_page(key, base):
         <h1>{escape(title)}</h1>
         {player}
         <h2>Текст выпуска</h2>
-        <p>{escape(transcript)}</p>{source}
+        <p id="clip-transcript">{escape(transcript)}</p>{source}
         <nav class="entry-options" aria-label="Навигация по выпускам">{"".join(navigation)}</nav>
         """, base=base)
 
@@ -254,6 +286,7 @@ def build_static():
     for key in CLIPS:
         write_page(clips_dir / f"{key}.html", clip_page(key, base="../"))
     write_page(output / "index.html", homepage(static=True))
+    write_page(output / "menu.html", menu_page(static=True))
     write_page(output / "instructions.html", instructions_page(static=True))
     write_page(output / "file.html", file_page(static=True))
     write_page(output / "clips.html", clips_page(static=True))
@@ -295,6 +328,8 @@ class Site(BaseHTTPRequestHandler):
 
         if request.path == "/":
             body = homepage()
+        elif request.path == "/menu.html":
+            body = menu_page()
         elif request.path == "/instructions.html":
             body = instructions_page()
         elif request.path == "/file.html":

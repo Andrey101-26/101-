@@ -13,6 +13,8 @@ VOICE_CHOICES = document.getElementById("voice-choices")
 SETTINGS = document.getElementById("site-settings")
 SETTINGS_SUMMARY = SETTINGS.querySelector("summary")
 PROMPT = document.querySelector("[data-dialogue-prompt]")
+ENTRY = document.getElementById("entry-intro")
+ENTRY_AUDIO = ENTRY.querySelector("audio") if ENTRY else None
 SPEAKER = getattr(window, "speechSynthesis", None)
 UTTERANCE = getattr(window, "SpeechSynthesisUtterance", None)
 STORAGE_KEY = "golos-keyboard-mode"
@@ -261,6 +263,8 @@ def move_focus(event):
             event.preventDefault()
             close_settings()
         stop_speech()
+        if ENTRY_AUDIO and not ENTRY_AUDIO.paused:
+            ENTRY_AUDIO.pause()
         return
     if not (enabled or in_settings) or event.key not in ("ArrowDown", "ArrowUp") or event.target.closest(NATIVE_ARROWS):
         return
@@ -284,6 +288,21 @@ def move_focus(event):
 def read_excerpt(event):
     target = document.getElementById(event.currentTarget.getAttribute("data-read"))
     speak(target.textContent.strip())
+
+
+def speak_entry(*_):
+    speak(document.getElementById("entry-transcript").textContent.strip())
+
+
+def open_entry(event):
+    event.preventDefault()
+    ENTRY.setAttribute("data-open", "")
+    document.getElementById("entry-intro-heading").focus()
+    if ENTRY_AUDIO:
+        ENTRY_AUDIO.currentTime = 0
+        ENTRY_AUDIO.play().catch(on_entry_audio_failure)
+    else:
+        speak_entry()
 
 
 def file_result(event):
@@ -340,6 +359,9 @@ for index in range(theme_buttons.length):
 quiet_link = document.querySelector("[data-quiet]")
 if quiet_link:
     quiet_link.addEventListener("click", create_proxy(quiet_mode))
+if ENTRY:
+    on_entry_audio_failure = create_proxy(speak_entry)
+    document.getElementById("entry-listen").addEventListener("click", create_proxy(open_entry))
 document.addEventListener("focusin", create_proxy(speak_focus))
 document.addEventListener("keydown", create_proxy(move_focus))
 document.addEventListener("play", create_proxy(stop_speech), True)
