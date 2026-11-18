@@ -9,8 +9,9 @@ from pyodide.ffi import create_proxy
 PANEL = document.getElementById("keyboard-mode")
 TOGGLE = document.getElementById("keyboard-toggle")
 STATUS = document.getElementById("keyboard-status")
-VOICE = document.getElementById("voice-choice")
-THEME = document.getElementById("theme-choice")
+VOICE_CHOICES = document.getElementById("voice-choices")
+SETTINGS = document.getElementById("site-settings")
+SETTINGS_SUMMARY = SETTINGS.querySelector("summary")
 PROMPT = document.querySelector("[data-dialogue-prompt]")
 SPEAKER = getattr(window, "speechSynthesis", None)
 UTTERANCE = getattr(window, "SpeechSynthesisUtterance", None)
@@ -93,39 +94,68 @@ def save(key, value, *, persistent=False):
 enabled = stored(STORAGE_KEY) == "on"
 question_pending = bool(PROMPT)
 voices = {}
+selected_voice = stored(VOICE_KEY, persistent=True) or ""
+voice_catalog = None
 file_reader = None
 
 
 def refresh_voices(event=None):
+    global voice_catalog
     if not SPEAKER or not UTTERANCE:
-        VOICE.disabled = True
+        VOICE_CHOICES.textContent = "Озвучивание недоступно в этом браузере."
         return
     available = SPEAKER.getVoices()
     all_voices = [available[index] for index in range(available.length)]
     russian = [voice for voice in all_voices if voice.lang.lower().startswith("ru")]
+    signature = tuple((voice.voiceURI, voice.name) for voice in russian)
     voices.clear()
-    voices.update((voice.voiceURI, voice) for voice in russian or all_voices)
-    VOICE.replaceChildren()
-    default = document.createElement("option")
-    default.value = ""
-    default.textContent = "Системный голос"
-    VOICE.append(default)
-    for key, voice in voices.items():
-        option = document.createElement("option")
-        option.value = key
-        option.textContent = voice.name
-        VOICE.append(option)
-    preferred = stored(VOICE_KEY, persistent=True)
-    VOICE.value = preferred if preferred in voices else ""
+    voices.update((voice.voiceURI, voice) for voice in russian)
+    if signature == voice_catalog:
+        return
+    voice_catalog = signature
+    active = document.activeElement
+    focused_voice = active.getAttribute("data-voice-choice") if VOICE_CHOICES.contains(active) else None
+    VOICE_CHOICES.replaceChildren()
+    for key, name in (("", "Системный"), *signature):
+        button = document.createElement("button")
+        button.type = "button"
+        button.setAttribute("data-voice-choice", key)
+        button.textContent = friendly_voice_name(name)
+        VOICE_CHOICES.append(button)
+        if key == focused_voice:
+            button.focus()
+    if focused_voice is not None and focused_voice and focused_voice not in voices:
+        VOICE_CHOICES.firstElementChild.focus()
+    mark_choice("data-voice-choice", selected_voice if selected_voice in voices else "")
+
+
+def friendly_voice_name(name):
+    short = name.split(" - ", 1)[0].removeprefix("Microsoft ")
+    return {"Pavel": "Павел", "Irina": "Ирина", "Daria": "Дарья"}.get(short, short)
+
+
+def mark_choice(attribute, selected):
+    buttons = document.querySelectorAll(f"button[{attribute}]")
+    for index in range(buttons.length):
+        button = buttons.item(index)
+        pressed = button.getAttribute(attribute) == selected
+        button.setAttribute("aria-pressed", "true" if pressed else "false")
 
 
 def choose_voice(event):
-    save(VOICE_KEY, VOICE.value, persistent=True)
+    global selected_voice
+    button = event.target.closest("[data-voice-choice]")
+    if not button:
+        return
+    selected_voice = button.getAttribute("data-voice-choice")
+    mark_choice("data-voice-choice", selected_voice)
+    save(VOICE_KEY, selected_voice, persistent=True)
     if enabled:
         speak("Удобно так?")
 
 
 def apply_theme(value):
+    mark_choice("data-theme-choice", value)
     if value in ("light", "dark"):
         document.documentElement.setAttribute("data-theme", value)
     else:
@@ -133,8 +163,14 @@ def apply_theme(value):
 
 
 def choose_theme(event):
-    apply_theme(THEME.value)
-    save(THEME_KEY, THEME.value, persistent=True)
+    value = event.currentTarget.getAttribute("data-theme-choice")
+    apply_theme(value)
+    save(THEME_KEY, value, persistent=True)
+
+
+def close_settings(event=None):
+    SETTINGS.open = False
+    SETTINGS_SUMMARY.focus()
 
 
 def speech_error(event):
@@ -155,7 +191,7 @@ def speak(text):
     if not text or any(not clips.item(i).paused for i in range(clips.length)):
         return
     message = UTTERANCE.new(text)
-    selected = voices.get(VOICE.value)
+    selected = voices.get(selected_voice)
     message.lang = selected.lang if selected else "ru-RU"
     if selected:
         message.voice = selected
@@ -178,7 +214,7 @@ def set_mode(value):
             "Режим включён." if SPEAKER and UTTERANCE
             else "Стрелки включены. Озвучивание в этом браузере недоступно."
         )
-        speak(PROMPT.textContent.strip() if PROMPT else "Слушаю.")
+        speak(PROMPT.getAttribute("data-dialogue-prompt") if PROMPT else "Слушаю.")
         question_pending = False
     else:
         stop_speech()
@@ -200,13 +236,16 @@ def speak_focus(event):
     if not enabled or not target.matches(CONTROLS + ", h2[tabindex]"):
         return
     label = target.getAttribute("aria-label")
+    labelled_by = target.getAttribute("aria-labelledby")
+    if not label and labelled_by:
+        label = " ".join(document.getElementById(key).textContent for key in labelled_by.split())
     labels = getattr(target, "labels", None)
     if not label and labels and labels.length:
         label = labels.item(0).textContent
     text = (label or target.textContent).strip()
     if question_pending and target.closest("main"):
         question_pending = False
-        text = PROMPT.textContent.strip() + " " + text
+        text = PROMPT.getAttribute("data-dialogue-prompt") + " " + text
     speak(text)
 
 
@@ -215,14 +254,18 @@ def move_focus(event):
         (event.altKey, event.ctrlKey, event.metaKey, event.shiftKey)
     ):
         return
+    active = document.activeElement
+    in_settings = SETTINGS.open and SETTINGS.contains(active)
     if event.key == "Escape":
+        if in_settings:
+            event.preventDefault()
+            close_settings()
         stop_speech()
         return
-    if not enabled or event.key not in ("ArrowDown", "ArrowUp") or event.target.closest(NATIVE_ARROWS):
+    if not (enabled or in_settings) or event.key not in ("ArrowDown", "ArrowUp") or event.target.closest(NATIVE_ARROWS):
         return
 
     forward = event.key == "ArrowDown"
-    active = document.activeElement
     controls = document.querySelectorAll(CONTROLS)
     indices = range(controls.length) if forward else range(controls.length - 1, -1, -1)
     position = window.Node.DOCUMENT_POSITION_FOLLOWING if forward else window.Node.DOCUMENT_POSITION_PRECEDING
@@ -232,6 +275,8 @@ def move_focus(event):
         if control.matches(".skip, :disabled") or not control.getClientRects().length:
             continue
         if active.isSameNode(document.body) or active.compareDocumentPosition(control) & position:
+            if in_settings and not SETTINGS.contains(control):
+                SETTINGS.open = False
             control.focus()
             break
 
@@ -286,8 +331,12 @@ def read_file(event):
 
 report_speech_error = create_proxy(speech_error)
 TOGGLE.addEventListener("click", create_proxy(toggle_mode))
-VOICE.addEventListener("change", create_proxy(choose_voice))
-THEME.addEventListener("change", create_proxy(choose_theme))
+VOICE_CHOICES.addEventListener("click", create_proxy(choose_voice))
+document.getElementById("settings-close").addEventListener("click", create_proxy(close_settings))
+theme_buttons = document.querySelectorAll("[data-theme-choice]")
+on_theme_choice = create_proxy(choose_theme)
+for index in range(theme_buttons.length):
+    theme_buttons.item(index).addEventListener("click", on_theme_choice)
 quiet_link = document.querySelector("[data-quiet]")
 if quiet_link:
     quiet_link.addEventListener("click", create_proxy(quiet_mode))
@@ -305,8 +354,7 @@ if SPEAKER and UTTERANCE:
         button.hidden = False
 refresh_voices()
 preferred_theme = stored(THEME_KEY, persistent=True)
-THEME.value = preferred_theme if preferred_theme in ("light", "dark") else "system"
-apply_theme(THEME.value)
+apply_theme(preferred_theme if preferred_theme in ("light", "dark") else "system")
 
 file_form = document.getElementById("file-form")
 if file_form:

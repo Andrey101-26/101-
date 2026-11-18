@@ -115,11 +115,20 @@ def page(title, content, base="/"):
 
 def homepage(static=False):
     return page("Главная", """
-        <h1 data-dialogue-prompt>Что пожелаете?</h1>
+        <h1 data-dialogue-prompt="Что пожелаете?">Что хотите сделать?</h1>
         <nav id="menu" aria-label="Главное меню" tabindex="-1">
-          <a id="materials" class="menu-link" href="instructions.html">Найти инструкцию</a>
-          <a class="menu-link" href="file.html">Прослушать главное из файла</a>
-          <a id="clips" class="menu-link" href="clips.html">Открыть короткие выпуски</a>
+          <a id="materials" class="menu-link" href="instructions.html" aria-labelledby="instructions-label" aria-describedby="instructions-description">
+            <strong id="instructions-label">Найти инструкцию</strong>
+            <span id="instructions-description">Как прочитать надпись или включить диктора на устройстве.</span>
+          </a>
+          <a class="menu-link" href="file.html" aria-labelledby="file-label" aria-describedby="file-description">
+            <strong id="file-label">Прочитать текстовый файл</strong>
+            <span id="file-description">Выберите TXT, чтобы прочитать или прослушать главное.</span>
+          </a>
+          <a id="clips" class="menu-link" href="clips.html" aria-labelledby="clips-label" aria-describedby="clips-description">
+            <strong id="clips-label">Открыть аудиосоветы</strong>
+            <span id="clips-description">Короткие выпуски. Текст есть у каждого.</span>
+          </a>
         </nav>
         <p class="entry-options">
           <a class="back-link" href="#menu" data-quiet>Продолжить в тишине</a>
@@ -130,7 +139,7 @@ def homepage(static=False):
 
 def instructions_page(static=False):
     content = """
-        <h1 data-dialogue-prompt>Что подсказать?</h1>
+        <h1 data-dialogue-prompt="Что подсказать?">Инструкции</h1>
         <nav id="menu" aria-label="Инструкции">
           <a class="menu-link" href="clips/etiketka.html">Прочитать мелкую надпись</a>
           <a class="menu-link" href="#devices">Настроить скринридер</a>
@@ -148,7 +157,7 @@ def instructions_page(static=False):
 
 def file_page(static=False):
     return page("Главное из файла", """
-        <h1 data-dialogue-prompt>Что прочитать?</h1>
+        <h1 data-dialogue-prompt="Что прочитать?">Главное из текстового файла</h1>
         <p id="file-fallback">Для выбора файла нужен режим Python в браузере.</p>
         <form id="file-form" hidden>
           <label for="text-file">Текстовый файл</label>
@@ -172,7 +181,7 @@ def clips_page(static=False):
         for key, (title, _) in CLIPS.items()
     )
     return page("Короткие выпуски", f"""
-        <h1 data-dialogue-prompt>Что включить?</h1>
+        <h1 data-dialogue-prompt="Что включить?">Короткие аудиосоветы</h1>
         <ol class="guides">{items}</ol>
         <p><a class="back-link" href="./">Вернуться к меню</a></p>
         """, base="./" if static else "/")

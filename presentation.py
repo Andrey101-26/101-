@@ -15,16 +15,23 @@ PAGE_TEMPLATE = r"""<!doctype html>
     <div class="shell">
       <a class="brand" href="$base">Голос и звук<span class="sr-only">, главная</span></a>
       <div id="keyboard-mode" hidden>
-        <details>
-          <summary>Голос и оформление</summary>
-          <label for="voice-choice">Голос</label>
-          <select id="voice-choice"><option value="">Системный голос</option></select>
-          <label for="theme-choice">Оформление</label>
-          <select id="theme-choice">
-            <option value="system">Как в системе</option>
-            <option value="light">Светлое</option>
-            <option value="dark">Тёмное</option>
-          </select>
+        <details id="site-settings">
+          <summary>Настройки</summary>
+          <div class="settings-panel">
+            <div role="group" aria-labelledby="voice-label">
+              <p id="voice-label" class="settings-label">Голос диктора</p>
+              <div id="voice-choices" class="setting-choices"></div>
+            </div>
+            <div role="group" aria-labelledby="theme-label">
+              <p id="theme-label" class="settings-label">Цветовая тема</p>
+              <div class="setting-choices">
+                <button type="button" data-theme-choice="system" aria-pressed="true">Системная</button>
+                <button type="button" data-theme-choice="light" aria-pressed="false">Светлая</button>
+                <button type="button" data-theme-choice="dark" aria-pressed="false">Тёмная</button>
+              </div>
+            </div>
+            <button id="settings-close" type="button">Закрыть настройки</button>
+          </div>
         </details>
         <button id="keyboard-toggle" type="button" aria-pressed="false" aria-describedby="keyboard-help">Озвучить меню</button>
         <p id="keyboard-help" class="sr-only">Стрелки вверх и вниз выбирают пункт. Enter открывает. Escape останавливает речь.</p>
@@ -42,31 +49,37 @@ PAGE_TEMPLATE = r"""<!doctype html>
 
 SITE_STYLES = r""":root {
   color-scheme: light;
-  --paper: #f8f6f0;
-  --panel: #fffdf8;
-  --ink: #121212;
-  --accent: #26221d;
+  --paper: #f7f8f5;
+  --panel: #fff;
+  --ink: #17241e;
+  --muted: #3c5147;
+  --line: #758279;
+  --accent: #173e31;
   --button-text: #fff;
-  --focus: #0a3788;
-  font: 125%/1.55 system-ui, "Segoe UI", sans-serif;
+  --focus: #004ab3;
+  font: 112.5%/1.5 system-ui, "Segoe UI", sans-serif;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --paper: #151515;
-  --panel: #212121;
-  --ink: #f5f5f5;
-  --accent: #fff;
-  --button-text: #151515;
+  --paper: #171a18;
+  --panel: #222a25;
+  --ink: #f4f7f4;
+  --muted: #c8d9cd;
+  --line: #899c90;
+  --accent: #c7ecdb;
+  --button-text: #16281f;
   --focus: #ffdf70;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
-    --paper: #151515;
-    --panel: #212121;
-    --ink: #f5f5f5;
-    --accent: #fff;
-    --button-text: #151515;
+    --paper: #171a18;
+    --panel: #222a25;
+    --ink: #f4f7f4;
+    --muted: #c8d9cd;
+    --line: #899c90;
+    --accent: #c7ecdb;
+    --button-text: #16281f;
     --focus: #ffdf70;
   }
 }
@@ -74,25 +87,35 @@ SITE_STYLES = r""":root {
 body { margin: 0; background: var(--paper); color: var(--ink); overflow-wrap: anywhere; }
 a { color: var(--accent); text-underline-offset: .2em; }
 :focus-visible, .arrow-mode :focus { outline: .18rem solid var(--focus); outline-offset: .16rem; }
-header { border-bottom: 1px solid var(--accent); }
-header .shell { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .25rem 1rem; padding-block: .45rem; }
+header { border-bottom: 1px solid var(--line); background: var(--panel); }
+header .shell { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .4rem 1rem; padding-block: .65rem; }
 .shell { width: min(100% - 2rem, 36rem); margin-inline: auto; }
-.brand { display: inline-flex; align-items: center; min-height: 44px; font-weight: 800; }
-#keyboard-mode { display: flex; align-items: baseline; flex-wrap: wrap; gap: .3rem .7rem; }
+.brand { display: inline-flex; align-items: center; min-height: 44px; font-weight: 800; text-decoration: none; }
+#keyboard-mode { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem .7rem; }
 [hidden] { display: none !important; }
 #keyboard-mode details { max-width: 100%; }
-#keyboard-mode summary { cursor: pointer; min-height: 44px; padding-block: .35rem; }
-#keyboard-mode label { margin-top: .45rem; }
+#keyboard-mode:has(details[open]), #keyboard-mode details[open] { flex-basis: 100%; }
+#keyboard-mode summary { cursor: pointer; min-height: 44px; padding: .45rem .7rem; border: 1px solid var(--line); border-radius: .4rem; }
+.settings-panel { display: grid; gap: .75rem; padding: .8rem; margin-top: .4rem; border: 1px solid var(--line); border-radius: .4rem; }
+.settings-panel > button { justify-self: start; }
+.settings-label { margin: 0 0 .4rem; font-weight: 700; }
+.setting-choices { display: flex; flex-wrap: wrap; gap: .4rem; }
+.settings-panel button { background: var(--panel); color: var(--ink); font-weight: 600; }
+.settings-panel button[aria-pressed="true"] { background: var(--accent); color: var(--button-text); }
+.setting-choices button[aria-pressed="true"]::before { content: "✓ "; }
 #keyboard-status { flex-basis: 100%; margin: 0; }
 #keyboard-status:empty { margin: 0; }
-main { padding-block: 2.2rem 2rem; }
+main { padding-block: clamp(1.6rem, 5vw, 3.25rem) 2rem; }
 h1, h2 { line-height: 1.15; margin-block: 0 .55em; }
 h1 { font-size: clamp(1.75rem, 5vw, 2.8rem); }
 h2 { font-size: 1.25rem; margin-top: 1.1em; }
 li + li { margin-top: .5rem; }
 .guides { padding-inline-start: 1.3rem; }
-.menu-link { display: block; padding: .6rem .8rem; background: var(--panel); border: 1px solid var(--accent); border-radius: .4rem; font-weight: 700; min-height: 52px; }
-#menu { display: grid; gap: .65rem; margin-block: 1.15rem; }
+.menu-link { display: grid; gap: .12rem; padding: .8rem 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: .55rem; min-height: 52px; text-decoration: none; }
+.menu-link:hover strong { text-decoration: underline; }
+.menu-link strong { font-size: 1.15rem; }
+.menu-link span { color: var(--muted); }
+#menu { display: grid; gap: .6rem; margin-block: 1.2rem .8rem; }
 .back-link { display: inline-flex; align-items: center; min-height: 44px; }
 .key-hint { margin-block: .8rem; }
 .entry-options { display: flex; flex-wrap: wrap; gap: .65rem; padding-block: .35rem; }
