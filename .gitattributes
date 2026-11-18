@@ -5,5 +5,7 @@
 /clips/*.html linguist-generated
 
 # The Languages chart tracks application logic separately from presentation.
+/app.py linguist-detectable
+/keyboard.py linguist-detectable
 /page.html -linguist-detectable
 /styles.css -linguist-detectable
