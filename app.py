@@ -38,8 +38,13 @@ CLIPS = {
 }
 WELCOME = (
     "Вступление",
-    "Привет, это «Голос и звук». Здесь есть практические инструкции и короткие выпуски. Чтобы сайт произносил названия выбранных пунктов, включите режим «Стрелки и озвучивание». Используйте стрелки вверх и вниз, а чтобы открыть пункт, нажмите Enter. Можно продолжить и в тишине.",
+    "Добро пожаловать. Озвучить меню? Включите озвучивание, если хотите слышать пункты. Стрелками выберите, что вам нужно. Нажмите Enter, чтобы открыть.",
 )
+GUIDE_SUMMARIES = {
+    "windows": "Нажмите Windows, Ctrl и Enter одновременно. Дождитесь голоса.",
+    "iphone": "Попросите Siri включить VoiceOver. Для выбора смахните вправо. Для открытия дважды коснитесь экрана.",
+    "android": "Если быстрый доступ к TalkBack настроен, удерживайте обе кнопки громкости. Если не получилось, откройте специальные возможности.",
+}
 
 
 def find_recording(key):
@@ -109,41 +114,68 @@ def page(title, content, base="/"):
 
 
 def homepage(static=False):
-    content = """
-        <h1>Инструкции на каждый день</h1>
-        <nav class="entry-options" aria-label="Как начать">
-          <a href="#materials" data-quiet>Продолжить в тишине</a>
-          <a href="intro.html">Вступление</a>
-          <a href="#devices">Настройка скринридера</a>
-          <a href="#clips">Короткие выпуски</a>
+    return page("Главная", """
+        <h1 data-dialogue-prompt>Что пожелаете?</h1>
+        <nav id="menu" aria-label="Главное меню" tabindex="-1">
+          <a id="materials" class="menu-link" href="instructions.html">Найти инструкцию</a>
+          <a class="menu-link" href="file.html">Прослушать главное из файла</a>
+          <a id="clips" class="menu-link" href="clips.html">Открыть короткие выпуски</a>
         </nav>
-        <section aria-labelledby="materials">
-          <h2 id="materials" tabindex="-1">Практические советы</h2>
-          <h3>Как прочитать мелкую надпись на упаковке</h3>
-          <p>{label_tip}</p>
-          <p>{label_source}</p>
-        </section>
+        <p class="entry-options">
+          <a class="back-link" href="#menu" data-quiet>Продолжить в тишине</a>
+          <a class="back-link" href="intro.html">Вступление</a>
+        </p>
+        """, base="./" if static else "/")
+
+
+def instructions_page(static=False):
+    content = """
+        <h1 data-dialogue-prompt>Что подсказать?</h1>
+        <nav id="menu" aria-label="Инструкции">
+          <a class="menu-link" href="clips/etiketka.html">Прочитать мелкую надпись</a>
+          <a class="menu-link" href="#devices">Настроить скринридер</a>
+        </nav>
         <section aria-labelledby="devices">
-          <h2 id="devices" tabindex="-1">Настройка скринридера по желанию</h2>
-          <p class="entry-options"><a href="#materials">Продолжить без настройки диктора</a></p>
-        """.format(
-        label_tip=escape(CLIPS["etiketka"][1]),
-        label_source=LABEL_SOURCE,
-    ) + guide_links(GUIDES, static=static)
+          <h2 id="devices" tabindex="-1">Какое у вас устройство?</h2>
+        """ + guide_links(GUIDES, static=static)
     if not static:
         content += SEARCH.format(query="")
+    return page("Инструкции", content + """
+        </section>
+        <p><a class="back-link" href="./">Вернуться к меню</a></p>
+        """, base="./" if static else "/")
+
+
+def file_page(static=False):
+    return page("Главное из файла", """
+        <h1 data-dialogue-prompt>Что прочитать?</h1>
+        <p id="file-fallback">Для выбора файла нужен режим Python в браузере.</p>
+        <form id="file-form" hidden>
+          <label for="text-file">Текстовый файл</label>
+          <input id="text-file" type="file" accept=".txt,text/plain" aria-describedby="file-help" required>
+          <p id="file-help">Формат TXT, до 256 КБ. Файл читается в браузере.</p>
+          <button type="submit">Выделить главное</button>
+        </form>
+        <p id="file-status" role="status"></p>
+        <section id="file-result" aria-labelledby="summary-heading" hidden>
+          <h2 id="summary-heading" tabindex="-1">Вот главное</h2>
+          <p id="file-summary"></p>
+          <button type="button" data-read="file-summary" hidden>Озвучить главное</button>
+        </section>
+        <p><a class="back-link" href="./">Вернуться к меню</a></p>
+        """, base="./" if static else "/")
+
+
+def clips_page(static=False):
     items = "".join(
         f'<li><a href="clips/{key}.html">{escape(title)}</a></li>'
         for key, (title, _) in CLIPS.items()
     )
-    content += f"""
-        </section>
-        <section aria-labelledby="clips">
-          <h2 id="clips" tabindex="-1">Короткие выпуски</h2>
-          <ol class="guides">{items}</ol>
-        </section>
-        """
-    return page("Инструкции на каждый день", content, base="./" if static else "/")
+    return page("Короткие выпуски", f"""
+        <h1 data-dialogue-prompt>Что включить?</h1>
+        <ol class="guides">{items}</ol>
+        <p><a class="back-link" href="./">Вернуться к меню</a></p>
+        """, base="./" if static else "/")
 
 
 def guide_page(key, base="/"):
@@ -151,9 +183,13 @@ def guide_page(key, base="/"):
     items = "".join(f"<li>{escape(step)}</li>" for step in steps)
     return page(title, f"""
         <h1>{escape(title)}</h1>
+        <h2>Коротко</h2>
+        <p id="guide-summary">{escape(GUIDE_SUMMARIES[key])}</p>
+        <button type="button" data-read="guide-summary" hidden>Озвучить главное</button>
+        <h2>По шагам</h2>
         <ol class="steps">{items}</ol>
         <p><a href="{escape(source)}">Инструкция производителя</a></p>
-        <p><a href="{base}#devices">Все инструкции по устройствам</a></p>
+        <p><a href="{base}instructions.html#devices">Все инструкции по устройствам</a></p>
         """, base=base)
 
 
@@ -167,7 +203,9 @@ def clip_page(key, base):
         player = note + f'<audio controls preload="none" src="{src}" aria-label="{escape(title)}"></audio>'
         player += f'<p><a href="{src}" download>Скачать запись</a></p>'
 
-    navigation = [f'<a href="{base}#clips">Все выпуски</a>']
+    navigation = [f'<a href="{base}clips.html">Все выпуски</a>'] if key in CLIPS else [
+        f'<a href="{base}">Перейти к меню</a>'
+    ]
     if key in CLIPS:
         keys = list(CLIPS)
         index = keys.index(key)
@@ -207,6 +245,9 @@ def build_static():
     for key in CLIPS:
         write_page(clips_dir / f"{key}.html", clip_page(key, base="../"))
     write_page(output / "index.html", homepage(static=True))
+    write_page(output / "instructions.html", instructions_page(static=True))
+    write_page(output / "file.html", file_page(static=True))
+    write_page(output / "clips.html", clips_page(static=True))
     write_page(output / "intro.html", clip_page("intro", base="./"))
     (output / "styles.css").write_bytes(CSS)
     (output / "keyboard.py").write_bytes(KEYBOARD_PY)
@@ -245,6 +286,12 @@ class Site(BaseHTTPRequestHandler):
 
         if request.path == "/":
             body = homepage()
+        elif request.path == "/instructions.html":
+            body = instructions_page()
+        elif request.path == "/file.html":
+            body = file_page()
+        elif request.path == "/clips.html":
+            body = clips_page()
         elif request.path == "/intro.html":
             body = clip_page("intro", base="/")
         elif request.path.startswith("/clips/") and request.path.endswith(".html") and request.path[7:-5] in CLIPS:
@@ -263,7 +310,7 @@ class Site(BaseHTTPRequestHandler):
             if matches:
                 results = f"<p>Найдено инструкций: {len(matches)}.</p>" + guide_links(matches)
             else:
-                results = '<p>Инструкция по этому запросу не найдена.</p><p><a href="/">Все инструкции по устройствам</a></p>'
+                results = '<p>Инструкция по этому запросу не найдена.</p><p><a href="/instructions.html#devices">Все инструкции по устройствам</a></p>'
             body = page("Результаты поиска", f"<h1>Результаты поиска</h1>{results}" + SEARCH.format(query=escape(query)))
         elif request.path.startswith("/guide/") and request.path[7:] in GUIDES:
             body = guide_page(request.path[7:])
