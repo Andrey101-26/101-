@@ -13,7 +13,35 @@ from urllib.parse import parse_qs, urlsplit
 ROOT = Path(__file__).resolve().parent
 PAGE = Template((ROOT / "page.html").read_text(encoding="utf-8"))
 CSS = (ROOT / "styles.css").read_bytes()
-INTRO_AUDIO = ROOT / "intro.wav"
+AUDIO_DIR = ROOT / "audio"
+
+CLIPS = {
+    "etiketka": (
+        "Прочитать мелкую надпись",
+        "Нужно прочитать мелкую надпись на упаковке? В приложении Be My Eyes откройте раздел Be My AI и сфотографируйте надпись. Если в ответе пропущена строка, попросите прочитать именно её или сделайте снимок ближе.",
+    ),
+    "windows-tab": (
+        "Перейти к нужной ссылке без мыши",
+        "На компьютере нажмите клавишу Tab, чтобы перейти к следующей ссылке или кнопке. Чтобы вернуться, нажмите Shift и Tab одновременно. Когда услышите название нужной ссылки, нажмите Enter.",
+    ),
+    "iphone-gesture": (
+        "Открыть выбранный пункт с VoiceOver",
+        "Если на айфоне включён VoiceOver, смахните одним пальцем вправо, чтобы перейти к следующему элементу. Когда услышите название нужного пункта, дважды коснитесь экрана одним пальцем. Откроется выбранный пункт.",
+    ),
+}
+WELCOME = (
+    "Вступление",
+    "Привет, это Восо. Здесь короткие выпуски с советами на каждый день. Выберите выпуск, чтобы прочитать текст или послушать запись. Включайте звук, когда вам удобно. Следующий выпуск откроется по вашей команде.",
+)
+
+
+def find_recording(key):
+    for suffix in ("mp3", "m4a", "wav"):
+        path = AUDIO_DIR / f"{key}.{suffix}"
+        if path.is_file():
+            return path, False
+    demo = AUDIO_DIR / f"demo-{key}.wav"
+    return (demo, True) if demo.is_file() else (None, False)
 
 GUIDES = {
     "windows": (
@@ -75,28 +103,26 @@ def page(title, content, base="/"):
 
 def homepage(static=False):
     content = """
-        <h1>Помощь с экранным доступом</h1>
-        <p>Скринридер можно настроить по инструкции или сразу перейти к материалам сайта.</p>
+        <h1>Короткие выпуски</h1>
         <nav class="entry-options" aria-label="Как начать">
-          <a href="#devices">Продолжить в тишине</a>
-          <a href="intro.html">Вступление с озвучкой</a>
+          <a href="#materials">К выпускам без звука</a>
+          <a href="intro.html">Вступление</a>
+          <a href="#devices">Настройка скринридера</a>
         </nav>
+        <h2 id="materials" tabindex="-1">Лента VoSo</h2>
+        <ol class="guides">
+        """ + "".join(
+        f'<li><a href="clips/{key}.html">{escape(title)}</a></li>'
+        for key, (title, _) in CLIPS.items()
+    ) + """
+        </ol>
         <section aria-labelledby="devices">
           <h2 id="devices" tabindex="-1">Настройка скринридера по желанию</h2>
           <p class="entry-options"><a href="#materials">Продолжить без настройки диктора</a></p>
         """ + guide_links(GUIDES, static=static)
     if not static:
         content += SEARCH.format(query="")
-    content += """
-        </section>
-        <section aria-labelledby="materials">
-          <h2 id="materials" tabindex="-1">Инструкции на каждый день</h2>
-          <h3>Как прочитать мелкую надпись на упаковке</h3>
-          <p>В приложении Be My Eyes откройте Be My AI и сфотографируйте надпись. Описание появится в чате. Если не хватило деталей, попросите прочитать конкретную строку или сделайте снимок ближе.</p>
-          <p><a href="https://support.bemyeyes.com/hc/en-us/articles/360005528557-Getting-started-with-Be-My-Eyes">Как установить и использовать Be My Eyes</a></p>
-        </section>
-        """
-    return page("Инструкции по скринридерам", content, base="./" if static else "/")
+    return page("Аудиолента", content + "</section>", base="./" if static else "/")
 
 
 def guide_page(key, base="/"):
@@ -106,21 +132,41 @@ def guide_page(key, base="/"):
         <h1>{escape(title)}</h1>
         <ol class="steps">{items}</ol>
         <p><a href="{escape(source)}">Инструкция производителя</a></p>
-        <p><a href="{base}">Все инструкции по устройствам</a></p>
+        <p><a href="{base}#devices">Все инструкции по устройствам</a></p>
         """, base=base)
 
 
-def intro_page(static=False):
-    return page("Вступление с озвучкой", """
-        <h1>Вступление с озвучкой</h1>
-        <p>Запустите запись, когда будете готовы.</p>
-        <audio controls preload="none" aria-label="Аудиозапись вступления" src="intro.wav">
-          <a href="intro.wav">Скачать аудиозапись вступления</a>
-        </audio>
-        <h2>Текст записи</h2>
-        <p>Это сайт «Голос и звук». Здесь есть инструкции для Windows, айфона и Андроида. Откройте все инструкции и выберите своё устройство.</p>
-        <p><a href="./#devices">Все инструкции по устройствам</a></p>
-        """, base="./" if static else "/")
+def clip_page(key, base):
+    title, transcript = WELCOME if key == "intro" else CLIPS[key]
+    recording, demo = find_recording(key)
+    player = "<p>Пока доступен текст выпуска.</p>"
+    if recording:
+        src = f"{base}audio/{recording.name}"
+        note = "<p>Пробная запись синтетическим голосом.</p>" if demo else ""
+        player = note + f'<audio controls preload="none" src="{src}" aria-label="{escape(title)}"></audio>'
+        player += f'<p><a href="{src}" download>Скачать запись</a></p>'
+
+    navigation = [f'<a href="{base}#materials">Все выпуски</a>']
+    if key in CLIPS:
+        keys = list(CLIPS)
+        index = keys.index(key)
+        if index > 0:
+            prev_key = keys[index - 1]
+            navigation.insert(0, f'<a href="{prev_key}.html">Предыдущий выпуск: {escape(CLIPS[prev_key][0])}</a>')
+        if index < len(keys) - 1:
+            next_key = keys[index + 1]
+            navigation.insert(0, f'<a href="{next_key}.html">Следующий выпуск: {escape(CLIPS[next_key][0])}</a>')
+
+    source = ""
+    if key == "etiketka":
+        source = '<p><a href="https://support.bemyeyes.com/hc/en-us/articles/360005528557-Getting-started-with-Be-My-Eyes">Как установить и использовать Be My Eyes</a></p>'
+    return page(title, f"""
+        <h1>{escape(title)}</h1>
+        {player}
+        <h2>Текст выпуска</h2>
+        <p>{escape(transcript)}</p>{source}
+        <nav class="entry-options" aria-label="Навигация по выпускам">{"".join(navigation)}</nav>
+        """, base=base)
 
 
 def build_static():
@@ -128,8 +174,12 @@ def build_static():
     directory.mkdir(exist_ok=True)
     for key in GUIDES:
         (directory / f"{key}.html").write_bytes(guide_page(key, base="../"))
+    clips_dir = ROOT / "clips"
+    clips_dir.mkdir(exist_ok=True)
+    for key in CLIPS:
+        (clips_dir / f"{key}.html").write_bytes(clip_page(key, base="../"))
     (ROOT / "index.html").write_bytes(homepage(static=True))
-    (ROOT / "intro.html").write_bytes(intro_page(static=True))
+    (ROOT / "intro.html").write_bytes(clip_page("intro", base="./"))
 
 
 def search_guides(query):
@@ -159,10 +209,17 @@ class Site(BaseHTTPRequestHandler):
         if request.path == "/":
             body = homepage()
         elif request.path == "/intro.html":
-            body = intro_page()
-        elif request.path == "/intro.wav":
-            body = INTRO_AUDIO.read_bytes()
-            content_type = "audio/wav"
+            body = clip_page("intro", base="/")
+        elif request.path.startswith("/clips/") and request.path.endswith(".html") and request.path[7:-5] in CLIPS:
+            body = clip_page(request.path[7:-5], base="/")
+        elif match := re.fullmatch(r"/audio/((?:demo-)?[a-z-]+)\.(mp3|m4a|wav)", request.path):
+            audio_path = AUDIO_DIR / f"{match[1]}.{match[2]}"
+            if audio_path.is_file():
+                body = audio_path.read_bytes()
+                content_type = {"mp3": "audio/mpeg", "m4a": "audio/mp4", "wav": "audio/wav"}[match[2]]
+            else:
+                status = HTTPStatus.NOT_FOUND
+                body = page("Запись не найдена", '<h1>Запись не найдена</h1><p><a href="/#materials">Все выпуски</a></p>')
         elif request.path == "/search":
             query = parse_qs(request.query).get("q", [""])[0].strip()[:120]
             matches = search_guides(query)
@@ -190,7 +247,7 @@ class Site(BaseHTTPRequestHandler):
 def serve():
     address = ("127.0.0.1", int(os.environ.get("PORT", "8000")))
     with ThreadingHTTPServer(address, Site) as server:
-        print(f"Голос и звук: http://{address[0]}:{address[1]}/", flush=True)
+        print(f"VoSo: http://{address[0]}:{address[1]}/", flush=True)
         try:
             server.serve_forever()
         except KeyboardInterrupt:
@@ -198,7 +255,7 @@ def serve():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Голос и звук")
+    parser = argparse.ArgumentParser(description="VoSo")
     parser.add_argument("--build-static", action="store_true", help="Собрать страницы для GitHub Pages.")
     if parser.parse_args().build_static:
         build_static()
