@@ -1,110 +1,16 @@
 <!doctype html>
-<html lang="ru" data-theme="light">
+<html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Доступные инструкции, уроки по скринридерам и помощь волонтёров.">
-  <title>Голос и звук — доступная помощь каждый день</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="app.js" defer></script>
+  <title>$title — Голос и звук</title>
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <a class="skip" href="#main">Перейти к основному содержимому</a>
-  <header class="site-header">
-    <div class="shell header-inner">
-      <a class="brand" href="./" aria-label="Голос и звук, главная"><span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span> Голос и звук</a>
-      <nav aria-label="Основная навигация"><a href="#instructions">Инструкции</a><a href="#knowledge">База знаний</a><a href="#help">Помощь</a></nav>
-      <button type="button" class="theme" id="theme" aria-pressed="false">Тёмная тема</button>
-    </div>
-  </header>
-  <main id="main" tabindex="-1">
-    <div class="hero">
-      <div class="shell hero-inner">
-        <div>
-          <h1>Голос и звук</h1>
-          <p class="intro">Инструкции, технологии и помощь волонтёров для незрячих и слабовидящих людей.</p>
-          <form id="hub-search" role="search" aria-label="Поиск инструкций" action="#instructions">
-            <label for="hub-query">Найти инструкцию или меню</label>
-            <div class="search-row">
-              <input type="search" id="hub-query" name="q" placeholder="Например, чайник">
-              <button type="submit" class="primary">Найти</button>
-              <button type="button" data-dictate="hub-query" aria-describedby="hub-voice">Голосовой ввод</button>
-            </div>
-            <p class="status" id="hub-voice" role="status" aria-live="polite"></p>
-          </form>
-        </div>
-        <div class="hero-art" aria-hidden="true"><div class="orbit"><div class="orbit"><div class="orbit"><div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div></div></div>
-      </div>
-    </div>
-    <section class="shell shortcuts" aria-labelledby="start-heading">
-      <h2 id="start-heading">С чего начать?</h2>
-      <div class="tiles">
-        <a class="tile" href="#instructions"><span class="tile-icon" aria-hidden="true">▤</span><span class="tile-name">Аудио-инструкции и меню</span><span>Техника, лекарства и меню в текстовом формате.</span><span class="arrow" aria-hidden="true">↗</span></a>
-        <a class="tile" href="#knowledge"><span class="tile-icon" aria-hidden="true">✦</span><span class="tile-name">База знаний и нейросети</span><span>Уроки по скринридерам и приложениям с ИИ.</span><span class="arrow" aria-hidden="true">↗</span></a>
-        <a class="tile" href="#help"><span class="tile-icon" aria-hidden="true">♡</span><span class="tile-name">Свободные глаза</span><span>Задайте вопрос волонтёру или приложите фото.</span><span class="arrow" aria-hidden="true">↗</span></a>
-        <a class="tile" href="#accessibility"><span class="tile-icon" aria-hidden="true">Aa</span><span class="tile-name">Доступность</span><span>Настройте тему и размер текста.</span><span class="arrow" aria-hidden="true">↗</span></a>
-      </div>
-    </section>
-    <section class="shell content-section" id="instructions" aria-labelledby="instructions-heading" tabindex="-1">
-      <h2 id="instructions-heading">Аудио-инструкции и меню</h2>
-      <div class="filters" role="search" aria-label="Поиск в каталоге">
-        <div><label for="catalog-query">Название</label><input type="search" id="catalog-query" placeholder="Чайник, меню, лекарство"></div>
-        <div><label for="category">Категория</label><select id="category"><option value="">Все категории</option><option value="device">Бытовая техника</option><option value="medicine">Лекарства</option><option value="menu">Меню</option></select></div>
-      </div>
-      <p id="search-status" role="status" aria-live="polite"></p>
-      <div class="entries" id="catalog">
-        <article data-category="device">
-          <h3>Электрочайник — пример инструкции</h3>
-          <p>Учебный пример для чайника с механическим рычажком. Сверьте расположение элементов с инструкцией вашей модели.</p>
-          <ol><li>Поставьте холодный отключённый чайник носиком от себя. Ручка сзади, рычажок включения в этом примере находится под ручкой, у основания. Кнопка открытия крышки — сверху на ручке.</li><li>Снимите чайник с базы. Налейте воду между отметками MIN и MAX. Если уровень нельзя определить доступным способом, попросите помочь при первом использовании.</li><li>Закройте крышку. Поставьте чайник на сухую базу и нажмите рычажок вниз. Дождитесь автоматического отключения и поднимайте чайник за ручку.</li></ol>
-        </article>
-        <article data-category="medicine">
-          <h3>Лекарство — как найти официальный листок-вкладыш</h3>
-          <ol><li>Уточните название, дозировку и форму выпуска на упаковке.</li><li>Откройте <a href="https://grls.rosminzdrav.ru/">Государственный реестр лекарственных средств</a> и найдите препарат по названию.</li><li>Сверьте производителя и форму выпуска. Если текст недоступен для чтения или данные различаются, попросите фармацевта помочь с проверкой.</li></ol>
-          <p>Принимайте лекарство по назначению врача и официальной инструкции к вашей упаковке.</p>
-        </article>
-        <article data-category="menu">
-          <h3>Меню кафе «Клевер» — учебный пример</h3>
-          <ul><li>Тыквенный суп, 300 граммов — 290 рублей. Содержит молоко.</li><li>Сэндвич с сыром, 180 граммов — 320 рублей. Содержит пшеницу, молоко и горчицу.</li><li>Чёрный чай, 300 миллилитров — 160 рублей.</li></ul>
-          <p>О наличии блюд и составе спрашивайте сотрудников кафе.</p>
-        </article>
-      </div>
-    </section>
-    <section class="shell content-section" id="knowledge" aria-labelledby="knowledge-heading" tabindex="-1">
-      <h2 id="knowledge-heading">База знаний и нейросети</h2>
-      <p>Откройте урок, чтобы прочитать его или включить озвучивание.</p>
-      <p id="audio-status" role="status"></p>
-      <div class="lessons">
-        <details><summary>VoiceOver на iPhone</summary><div class="lesson"><h3>Включение и первые жесты</h3><ol><li>Откройте «Настройки», «Универсальный доступ», «VoiceOver». Включите VoiceOver. Если Siri настроена, можно попросить её включить VoiceOver.</li><li>Коснитесь элемента, чтобы услышать его название. Дважды коснитесь экрана одним пальцем, чтобы активировать выбранное.</li><li>Смахните одним пальцем вправо для следующего элемента или влево для предыдущего. Меню «Практика VoiceOver» позволяет потренироваться.</li></ol><div class="audio"></div></div></details>
-        <details><summary>TalkBack на Android</summary><div class="lesson"><h3>Включение и первые жесты</h3><ol><li>В настройках откройте «Специальные возможности», затем TalkBack. Названия и расположение пунктов могут отличаться.</li><li>Включите TalkBack. Смахивайте одним пальцем вправо или влево, чтобы переходить между элементами. Двойное касание активирует выбранный элемент.</li><li>Прокручивайте страницу двумя пальцами. Откройте руководство TalkBack в настройках, чтобы попрактиковаться.</li></ol><div class="audio"></div></div></details>
-        <details><summary>Экранный диктор в Windows</summary><div class="lesson"><h3>Запуск с клавиатуры</h3><ol><li>Нажмите клавиши Windows, Ctrl и Enter одновременно. Эта комбинация включает и выключает экранный диктор, если разрешена в настройках.</li><li>Для настройки нажмите Windows, Ctrl и N. Выберите голос и скорость.</li><li>На веб-странице нажимайте Tab для перехода к ссылкам и элементам управления. Shift и Tab перемещают в обратном направлении. Enter открывает ссылку.</li></ol><div class="audio"></div></div></details>
-        <details><summary>Распознавание текста, предметов и купюр с ИИ</summary><div class="lesson"><h3>Как получить и проверить описание</h3><ol><li>Откройте приложение с нужным режимом. Например, в Seeing AI проверьте наличие каналов текста, описания сцены и валюты. Режимы и валюты зависят от версии.</li><li>Для текста направьте камеру на документ при хорошем освещении. Если чтение прерывается, отодвиньте камеру, чтобы в кадр помещалась вся строка.</li><li>Для предмета запросите описание сцены и повторите снимок с другой стороны, если вывод неоднозначен.</li><li>Для купюры проверьте поддержку её валюты в приложении. Сверьте результат повторным сканированием. Если сомневаетесь, попросите проверить номинал доверенного человека.</li></ol><div class="audio"></div></div></details>
-      </div>
-    </section>
-    <section class="shell content-section" id="help" aria-labelledby="help-heading" tabindex="-1">
-      <h2 id="help-heading">Свободные глаза</h2>
-      <p>Попросите волонтёра прочитать надпись или описать то, что на фото. Можно отправить вопрос, фото или оба сразу.</p>
-      <p id="help-availability">Демонстрационная форма. Введённые данные остаются на этой странице.</p>
-      <form id="help-form" class="help-form">
-        <label for="question">Ваш вопрос</label>
-        <textarea id="question" rows="4" maxlength="2000" aria-describedby="help-voice"></textarea>
-        <button type="button" data-dictate="question" aria-describedby="help-voice">Продиктовать вопрос</button>
-        <p class="status" id="help-voice" role="status"></p>
-        <label for="photo">Фото (необязательно)</label>
-        <input id="photo" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="photo-note">
-        <p id="photo-note">Для демонстрации выберите JPEG, PNG или WebP размером до 5 МБ.</p>
-        <button class="primary" id="send-help" type="submit" disabled>Проверить запрос</button>
-        <p id="help-status" role="status"></p>
-      </form>
-    </section>
-    <section class="shell content-section" id="accessibility" aria-labelledby="access-heading" tabindex="-1">
-      <h2 id="access-heading">Доступность</h2>
-      <p>Нажимайте Tab, чтобы перемещаться по элементам, и Shift + Tab, чтобы вернуться. Первая ссылка ведёт к основному содержимому. Настройки сохраняются в этом браузере, если разрешено локальное хранилище.</p>
-      <label for="text-size">Размер текста</label>
-      <select id="text-size"><option value="100">Обычный</option><option value="125">Крупный</option><option value="150">Очень крупный</option></select>
-      <p><a href="#theme">Перейти к переключателю темы</a></p>
-    </section>
+  <header><div class="shell"><a class="brand" href="/">Голос и звук<span class="sr-only">, главная</span></a></div></header>
+  <main class="shell" id="main" tabindex="-1">
+    $content
   </main>
-  <footer><div class="shell footer-inner"><strong>Голос и звук</strong><span>Дипломный проект</span><a href="#main">К началу основного содержимого</a></div></footer>
 </body>
 </html>
