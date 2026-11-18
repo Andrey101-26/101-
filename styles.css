@@ -21,10 +21,13 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--paper); color: var(--ink); overflow-wrap: anywhere; }
 a { color: var(--accent); text-underline-offset: .2em; }
-:focus-visible { outline: .18rem solid var(--focus); outline-offset: .16rem; }
+:focus-visible, .arrow-mode :focus { outline: .18rem solid var(--focus); outline-offset: .16rem; }
 header { background: var(--panel); border-bottom: 1px solid var(--accent); }
 .shell { width: min(100% - 2rem, 37rem); margin-inline: auto; }
 .brand { display: inline-flex; align-items: center; min-height: 44px; font-weight: 800; }
+#keyboard-mode { padding-block: .3rem .65rem; }
+#keyboard-mode p { margin: .45rem 0 0; }
+#keyboard-status:empty { margin: 0; }
 main { padding-block: 1.6rem 2rem; }
 h1, h2 { line-height: 1.15; margin-block: 0 .55em; }
 h1 { font-size: clamp(1.75rem, 5vw, 2.8rem); }
@@ -44,6 +47,6 @@ button { color: var(--button-text); background: var(--accent); cursor: pointer; 
 .skip:focus { transform: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 @media (forced-colors: active) {
-  :focus-visible { outline-color: Highlight; }
+  :focus-visible, .arrow-mode :focus { outline-color: Highlight; }
   .guides a, .entry-options a, button, input { border-color: ButtonText; }
 }

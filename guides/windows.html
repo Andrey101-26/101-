@@ -3,17 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Как включить Экранный диктор в Windows — VoSo</title>
+  <title>Как включить Экранный диктор в Windows — Голос и звук</title>
   <link rel="stylesheet" href="../styles.css">
+  <script type="module" src="https://pyscript.net/releases/2026.7.3/core.js"></script>
 </head>
 <body>
   <a class="skip" href="#main">Перейти к основному содержимому</a>
-  <header><div class="shell"><a class="brand" href="../" aria-label="VoSo, Восо, главная">VoSo</a></div></header>
+  <header>
+    <div class="shell">
+      <a class="brand" href="../">Голос и звук<span class="sr-only">, главная</span></a>
+      <div id="keyboard-mode" hidden>
+        <button id="keyboard-toggle" type="button" aria-pressed="false" aria-describedby="keyboard-help">Стрелки и озвучивание</button>
+        <p id="keyboard-help">Вверх и вниз — выбрать пункт. Enter — открыть. Tab — обычная навигация. Escape — прервать озвучивание.</p>
+        <p id="keyboard-status" role="status"></p>
+      </div>
+    </div>
+  </header>
   <main class="shell" id="main" tabindex="-1">
     <h1>Как включить Экранный диктор в Windows</h1>
         <ol class="steps"><li>Одновременно нажмите клавиши Windows, Ctrl и Enter. Клавиша Windows обычно находится в нижнем ряду рядом с Alt.</li><li>Дождитесь, пока Экранный диктор начнёт говорить. Для перехода к следующей ссылке нажмите Tab, для предыдущей — Shift и Tab. Enter открывает выбранную ссылку.</li><li>Если сочетание не сработало, попробуйте Windows, Ctrl и N. Откроются настройки Экранного диктора. Если компьютер пока молчит, продолжайте читать эту инструкцию со второго устройства и попросите помочь включить переключатель в настройках.</li></ol>
         <p><a href="https://support.microsoft.com/en-us/accessibility/windows/narrator/chapter-1-introducing-narrator">Инструкция производителя</a></p>
         <p><a href="../#devices">Все инструкции по устройствам</a></p>
   </main>
+  <script type="py" src="../keyboard.py"></script>
 </body>
 </html>

@@ -3,18 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Открыть выбранный пункт с VoiceOver — VoSo</title>
+  <title>Открыть выбранный пункт с VoiceOver — Голос и звук</title>
   <link rel="stylesheet" href="../styles.css">
+  <script type="module" src="https://pyscript.net/releases/2026.7.3/core.js"></script>
 </head>
 <body>
   <a class="skip" href="#main">Перейти к основному содержимому</a>
-  <header><div class="shell"><a class="brand" href="../" aria-label="VoSo, Восо, главная">VoSo</a></div></header>
+  <header>
+    <div class="shell">
+      <a class="brand" href="../">Голос и звук<span class="sr-only">, главная</span></a>
+      <div id="keyboard-mode" hidden>
+        <button id="keyboard-toggle" type="button" aria-pressed="false" aria-describedby="keyboard-help">Стрелки и озвучивание</button>
+        <p id="keyboard-help">Вверх и вниз — выбрать пункт. Enter — открыть. Tab — обычная навигация. Escape — прервать озвучивание.</p>
+        <p id="keyboard-status" role="status"></p>
+      </div>
+    </div>
+  </header>
   <main class="shell" id="main" tabindex="-1">
     <h1>Открыть выбранный пункт с VoiceOver</h1>
         <p>Пока доступен текст выпуска.</p>
         <h2>Текст выпуска</h2>
         <p>Если на айфоне включён VoiceOver, смахните одним пальцем вправо, чтобы перейти к следующему элементу. Когда услышите название нужного пункта, дважды коснитесь экрана одним пальцем. Откроется выбранный пункт.</p>
-        <nav class="entry-options" aria-label="Навигация по выпускам"><a href="windows-tab.html">Предыдущий выпуск: Перейти к нужной ссылке без мыши</a><a href="../#materials">Все выпуски</a></nav>
+        <nav class="entry-options" aria-label="Навигация по выпускам"><a href="windows-tab.html">Предыдущий выпуск: Перейти к нужной ссылке без мыши</a><a href="../#clips">Все выпуски</a></nav>
   </main>
+  <script type="py" src="../keyboard.py"></script>
 </body>
 </html>

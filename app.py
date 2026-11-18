@@ -13,7 +13,12 @@ from urllib.parse import parse_qs, urlsplit
 ROOT = Path(__file__).resolve().parent
 PAGE = Template((ROOT / "page.html").read_text(encoding="utf-8"))
 CSS = (ROOT / "styles.css").read_bytes()
+KEYBOARD_PY = (ROOT / "keyboard.py").read_bytes()
 AUDIO_DIR = ROOT / "audio"
+LABEL_SOURCE = (
+    '<a href="https://support.bemyeyes.com/hc/en-us/articles/360005528557-Getting-started-with-Be-My-Eyes">'
+    "Как установить и использовать Be My Eyes</a>"
+)
 
 CLIPS = {
     "etiketka": (
@@ -31,7 +36,7 @@ CLIPS = {
 }
 WELCOME = (
     "Вступление",
-    "Привет, это Восо. Здесь короткие выпуски с советами на каждый день. Выберите выпуск, чтобы прочитать текст или послушать запись. Включайте звук, когда вам удобно. Следующий выпуск откроется по вашей команде.",
+    "Привет, это «Голос и звук». Здесь есть практические инструкции и короткие выпуски. Чтобы сайт произносил названия выбранных пунктов, включите режим «Стрелки и озвучивание». Используйте стрелки вверх и вниз, а чтобы открыть пункт, нажмите Enter. Можно продолжить и в тишине.",
 )
 
 
@@ -103,26 +108,40 @@ def page(title, content, base="/"):
 
 def homepage(static=False):
     content = """
-        <h1>Короткие выпуски</h1>
+        <h1>Инструкции на каждый день</h1>
         <nav class="entry-options" aria-label="Как начать">
-          <a href="#materials">К выпускам без звука</a>
+          <a href="#materials" data-quiet>Продолжить в тишине</a>
           <a href="intro.html">Вступление</a>
           <a href="#devices">Настройка скринридера</a>
+          <a href="#clips">Короткие выпуски</a>
         </nav>
-        <h2 id="materials" tabindex="-1">Лента VoSo</h2>
-        <ol class="guides">
-        """ + "".join(
-        f'<li><a href="clips/{key}.html">{escape(title)}</a></li>'
-        for key, (title, _) in CLIPS.items()
-    ) + """
-        </ol>
+        <section aria-labelledby="materials">
+          <h2 id="materials" tabindex="-1">Практические советы</h2>
+          <h3>Как прочитать мелкую надпись на упаковке</h3>
+          <p>{label_tip}</p>
+          <p>{label_source}</p>
+        </section>
         <section aria-labelledby="devices">
           <h2 id="devices" tabindex="-1">Настройка скринридера по желанию</h2>
           <p class="entry-options"><a href="#materials">Продолжить без настройки диктора</a></p>
-        """ + guide_links(GUIDES, static=static)
+        """.format(
+        label_tip=escape(CLIPS["etiketka"][1]),
+        label_source=LABEL_SOURCE,
+    ) + guide_links(GUIDES, static=static)
     if not static:
         content += SEARCH.format(query="")
-    return page("Аудиолента", content + "</section>", base="./" if static else "/")
+    items = "".join(
+        f'<li><a href="clips/{key}.html">{escape(title)}</a></li>'
+        for key, (title, _) in CLIPS.items()
+    )
+    content += f"""
+        </section>
+        <section aria-labelledby="clips">
+          <h2 id="clips" tabindex="-1">Короткие выпуски</h2>
+          <ol class="guides">{items}</ol>
+        </section>
+        """
+    return page("Инструкции на каждый день", content, base="./" if static else "/")
 
 
 def guide_page(key, base="/"):
@@ -146,7 +165,7 @@ def clip_page(key, base):
         player = note + f'<audio controls preload="none" src="{src}" aria-label="{escape(title)}"></audio>'
         player += f'<p><a href="{src}" download>Скачать запись</a></p>'
 
-    navigation = [f'<a href="{base}#materials">Все выпуски</a>']
+    navigation = [f'<a href="{base}#clips">Все выпуски</a>']
     if key in CLIPS:
         keys = list(CLIPS)
         index = keys.index(key)
@@ -159,7 +178,7 @@ def clip_page(key, base):
 
     source = ""
     if key == "etiketka":
-        source = '<p><a href="https://support.bemyeyes.com/hc/en-us/articles/360005528557-Getting-started-with-Be-My-Eyes">Как установить и использовать Be My Eyes</a></p>'
+        source = f"<p>{LABEL_SOURCE}</p>"
     return page(title, f"""
         <h1>{escape(title)}</h1>
         {player}
@@ -219,7 +238,7 @@ class Site(BaseHTTPRequestHandler):
                 content_type = {"mp3": "audio/mpeg", "m4a": "audio/mp4", "wav": "audio/wav"}[match[2]]
             else:
                 status = HTTPStatus.NOT_FOUND
-                body = page("Запись не найдена", '<h1>Запись не найдена</h1><p><a href="/#materials">Все выпуски</a></p>')
+                body = page("Запись не найдена", '<h1>Запись не найдена</h1><p><a href="/#clips">Все выпуски</a></p>')
         elif request.path == "/search":
             query = parse_qs(request.query).get("q", [""])[0].strip()[:120]
             matches = search_guides(query)
@@ -233,6 +252,9 @@ class Site(BaseHTTPRequestHandler):
         elif request.path == "/styles.css":
             body = CSS
             content_type = "text/css; charset=utf-8"
+        elif request.path == "/keyboard.py":
+            body = KEYBOARD_PY
+            content_type = "text/plain; charset=utf-8"
         else:
             status = HTTPStatus.NOT_FOUND
             body = page("Страница не найдена", '<h1>Страница не найдена</h1><p><a href="/">Все инструкции по устройствам</a></p>')
@@ -247,7 +269,7 @@ class Site(BaseHTTPRequestHandler):
 def serve():
     address = ("127.0.0.1", int(os.environ.get("PORT", "8000")))
     with ThreadingHTTPServer(address, Site) as server:
-        print(f"VoSo: http://{address[0]}:{address[1]}/", flush=True)
+        print(f"Голос и звук: http://{address[0]}:{address[1]}/", flush=True)
         try:
             server.serve_forever()
         except KeyboardInterrupt:
@@ -255,7 +277,7 @@ def serve():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="VoSo")
+    parser = argparse.ArgumentParser(description="Голос и звук")
     parser.add_argument("--build-static", action="store_true", help="Собрать страницы для GitHub Pages.")
     if parser.parse_args().build_static:
         build_static()
