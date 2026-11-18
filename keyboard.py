@@ -1,7 +1,11 @@
 """Optional keyboard and speech controls for browsers running PyScript."""
 
+import asyncio
+import importlib
 import re
+import sys
 from collections import Counter
+from pathlib import Path
 
 from js import document, window
 from pyodide.ffi import create_proxy
@@ -26,20 +30,6 @@ NATIVE_ARROWS = "input, select, textarea, audio, video, [contenteditable]"
 STOP_WORDS = set(
     "или это все как что при для без ещё где когда чем если этот эта эти того его она они который которая которые после перед через такие между также такой такое чтобы тот есть там уже можно было быть будут".split()
 )
-MAX_FILE_BYTES = 256 * 1024
-
-
-def decode_text(data):
-    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
-        text = data.decode("utf-16")
-    else:
-        try:
-            text = data.decode("utf-8-sig")
-        except UnicodeDecodeError:
-            text = data.decode("cp1251")
-    if any(not (char.isprintable() or char in "\r\n\t") for char in text):
-        raise ValueError("Похоже, это не текстовый файл.")
-    return text
 
 
 def extract_summary(text):
@@ -59,7 +49,10 @@ def extract_summary(text):
     def rank(index):
         unique = set(words[index])
         recurring = sum(min(counts[word] - 1, 4) for word in unique) / max(5, len(unique))
-        cue = any(word in unique for word in ("главное", "важно", "нужно", "итог", "итоги", "цель", "результат"))
+        cue = any(word in unique for word in (
+            "главное", "важно", "нужно", "итог", "итоги", "цель", "результат",
+            "important", "must", "summary", "conclusion",
+        ))
         return recurring + cue + 0.2 / (index + 1)
 
     limit = min(3, max(1, (len(parts) + 1) // 3))
@@ -99,6 +92,9 @@ voices = {}
 selected_voice = stored(VOICE_KEY, persistent=True) or ""
 voice_catalog = None
 file_reader = None
+file_generation = 0
+file_name = ""
+package_loads = {}
 
 
 def refresh_voices(event=None):
@@ -305,22 +301,58 @@ def open_entry(event):
         speak_entry()
 
 
-def file_result(event):
+async def install_package(module, wheel):
     try:
-        data = window.Uint8Array.new(file_reader.result).to_bytes()
-        summary = extract_summary(decode_text(data))
-        if not summary:
-            raise ValueError("В файле нет текста.")
-    except UnicodeError:
-        file_status.textContent = "Не удалось распознать кодировку. Сохраните файл как TXT в UTF-8."
+        importlib.import_module(module)
+    except ImportError:
+        from pyodide.http import pyfetch
+
+        response = await pyfetch(f"vendor/{wheel}")
+        if not response.ok:
+            raise OSError("Could not load bundled Python module")
+        path = Path("/tmp") / wheel
+        path.write_bytes(await response.bytes())
+        sys.path.insert(0, str(path))
+        importlib.import_module(module)
+
+
+async def process_file(filename, data, generation):
+    dependency = FILE_PACKAGES.get(file_suffix(filename))
+    if dependency:
+        module, package = dependency
+        try:
+            if package not in package_loads:
+                package_loads[package] = asyncio.ensure_future(install_package(module, package))
+            await package_loads[package]
+        except Exception:
+            package_loads.pop(package, None)
+            if generation == file_generation:
+                file_status.textContent = "Не удалось загрузить модуль чтения. Проверьте интернет и попробуйте снова."
+            return
+    if generation != file_generation:
         return
+    try:
+        text = read_document(filename, data)
+        summary = extract_summary(text)
+        if not summary:
+            raise ValueError("Не удалось выделить главное из этого текста.")
     except ValueError as error:
         file_status.textContent = str(error)
         return
+    except Exception:
+        file_status.textContent = "Не удалось прочитать этот документ. Попробуйте сохранить его в другом формате."
+        return
     file_status.textContent = ""
     document.getElementById("file-summary").textContent = summary
+    document.getElementById("file-full-text").textContent = text
+    document.querySelector("#file-result details").open = False
     document.getElementById("file-result").hidden = False
     document.getElementById("summary-heading").focus()
+
+
+def file_result(event):
+    data = window.Uint8Array.new(file_reader.result).to_bytes()
+    asyncio.ensure_future(process_file(file_name, data, file_generation))
 
 
 def file_error(event):
@@ -328,24 +360,86 @@ def file_error(event):
 
 
 def clear_file_result(event=None):
+    global file_generation
+    file_generation += 1
     if file_reader.readyState == 1:
         file_reader.abort()
     document.getElementById("file-result").hidden = True
     document.getElementById("file-summary").textContent = ""
+    document.getElementById("file-full-text").textContent = ""
     file_status.textContent = ""
     stop_speech()
 
 
 def read_file(event):
+    global file_name
     event.preventDefault()
     clear_file_result()
     selected = document.getElementById("text-file").files.item(0)
-    if not selected or not selected.name.lower().endswith(".txt"):
-        file_status.textContent = "Выберите файл TXT."
+    if not selected:
+        file_status.textContent = "Выберите документ."
+    elif file_suffix(selected.name) == ".doc":
+        file_status.textContent = "Сохраните документ Word в формате DOCX и выберите его снова."
+    elif file_suffix(selected.name) not in SUPPORTED:
+        file_status.textContent = "Выберите DOCX, PDF, ODT, RTF, TXT, Markdown или CSV."
     elif selected.size > MAX_FILE_BYTES:
-        file_status.textContent = "Выберите файл до 256 КБ."
+        file_status.textContent = "Выберите файл до 8 МБ."
     else:
+        file_name = selected.name
+        file_status.textContent = "Читаю документ…"
         file_reader.readAsArrayBuffer(selected)
+
+
+def filter_instructions(event):
+    event.preventDefault()
+    if event.type == "reset":
+        instruction_query.value = ""
+    words = query_words(instruction_query.value)
+    results = 0
+    for index in range(instruction_groups.length):
+        group = instruction_groups.item(index)
+        items = group.querySelectorAll("[data-instruction]")
+        visible = 0
+        for item_index in range(items.length):
+            item = items.item(item_index)
+            match = matches_query(words, item.getAttribute("data-instruction"))
+            item.hidden = not match
+            visible += int(match)
+        group.hidden = not visible
+        results += visible
+    instruction_status.textContent = (
+        f"Найдено инструкций: {results}." if results else "Ничего не найдено. Попробуйте более короткий запрос."
+    )
+
+
+def prepare_help(event):
+    event.preventDefault()
+    name = document.getElementById("document-name").value.strip()
+    subject = f"документ «{name}»" if name else "документ"
+    help_text.value = (
+        f"Здравствуйте! Можно получить {subject} в доступном формате? "
+        "Подойдёт DOCX или TXT, в котором текст можно выделить и прочитать скринридером. Спасибо!"
+    )
+    help_status.textContent = "Сообщение готово."
+    help_text.focus()
+
+
+def help_copied(*_):
+    help_status.textContent = "Сообщение скопировано."
+
+
+def select_help(*_):
+    help_text.focus()
+    help_text.select()
+    help_status.textContent = "Текст выделен. Нажмите Ctrl+C или Command+C."
+
+
+def copy_help(event):
+    clipboard = getattr(window.navigator, "clipboard", None)
+    if clipboard:
+        clipboard.writeText(help_text.value).then(on_help_copied).catch(on_help_fallback)
+    else:
+        select_help()
 
 
 report_speech_error = create_proxy(speech_error)
@@ -380,6 +474,8 @@ apply_theme(preferred_theme if preferred_theme in ("light", "dark") else "system
 
 file_form = document.getElementById("file-form")
 if file_form:
+    from document_text import FILE_PACKAGES, MAX_FILE_BYTES, SUPPORTED, file_suffix, read_document
+
     file_status = document.getElementById("file-status")
     file_reader = window.FileReader.new()
     file_reader.addEventListener("load", create_proxy(file_result))
@@ -388,5 +484,29 @@ if file_form:
     document.getElementById("text-file").addEventListener("change", create_proxy(clear_file_result))
     document.getElementById("file-fallback").hidden = True
     file_form.hidden = False
+
+instruction_form = document.getElementById("instruction-filter")
+if instruction_form:
+    from instruction_search import matches_query, query_words
+
+    instruction_query = document.getElementById("instruction-query")
+    instruction_status = document.getElementById("instruction-status")
+    instruction_groups = document.querySelectorAll("[data-instruction-group]")
+    on_search = create_proxy(filter_instructions)
+    instruction_form.addEventListener("submit", on_search)
+    instruction_form.addEventListener("reset", on_search)
+    instruction_form.hidden = False
+
+help_form = document.getElementById("help-form")
+if help_form:
+    help_text = document.getElementById("help-text")
+    help_status = document.getElementById("help-status")
+    help_button = document.getElementById("copy-help")
+    on_help_copied = create_proxy(help_copied)
+    on_help_fallback = create_proxy(select_help)
+    help_form.addEventListener("submit", create_proxy(prepare_help))
+    help_button.addEventListener("click", create_proxy(copy_help))
+    help_form.hidden = False
+    help_button.hidden = False
 update_mode()
 PANEL.hidden = False

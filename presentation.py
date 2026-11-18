@@ -42,7 +42,7 @@ PAGE_TEMPLATE = r"""<!doctype html>
   <main class="shell" id="main" tabindex="-1">
     $content
   </main>
-  <script type="py" src="${base}keyboard.py"></script>
+  <script type="py"$keyboard_config src="${base}keyboard.py"></script>
 </body>
 </html>
 """
@@ -132,6 +132,10 @@ select { color: var(--ink); background: var(--panel); }
 button { color: var(--button-text); background: var(--accent); cursor: pointer; font-weight: 700; }
 #file-form { display: grid; gap: .55rem; justify-items: start; }
 #file-status:empty { margin: 0; }
+#instruction-status:empty, #help-status:empty { margin: 0; }
+#help-form { display: grid; gap: .55rem; justify-items: start; margin-bottom: .8rem; }
+#help-text { display: block; width: 100%; max-width: 100%; font: inherit; padding: .6rem; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: .4rem; margin-bottom: .55rem; }
+.document-text { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
 .skip { position: absolute; top: .5rem; left: .5rem; padding: .5rem; background: var(--panel); transform: translateY(calc(-100% - 1rem)); }
 .skip:focus { transform: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

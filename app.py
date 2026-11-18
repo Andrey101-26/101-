@@ -1,6 +1,7 @@
 """Run with python app.py. The site uses only Python's standard library."""
 
 import argparse
+import json
 import os
 import re
 from html import escape
@@ -10,13 +11,21 @@ from pathlib import Path
 from string import Template
 from urllib.parse import parse_qs, urlsplit
 
+from document_text import FILE_PACKAGES
+from instruction_search import matches_query, query_words
 from presentation import PAGE_TEMPLATE, SITE_STYLES
 
 ROOT = Path(__file__).resolve().parent
 PAGE = Template(PAGE_TEMPLATE)
 CSS = SITE_STYLES.encode("utf-8")
 KEYBOARD_PY = (ROOT / "keyboard.py").read_bytes()
+BROWSER_MODULES = {
+    name: (ROOT / name).read_bytes()
+    for name in ("document_text.py", "instruction_search.py")
+}
 AUDIO_DIR = ROOT / "audio"
+VENDOR_DIR = ROOT / "vendor"
+VENDOR_WHEELS = {wheel for _, wheel in FILE_PACKAGES.values()}
 LABEL_SOURCE = (
     '<a href="https://support.bemyeyes.com/hc/en-us/articles/360005528557-Getting-started-with-Be-My-Eyes">'
     "Как установить и использовать Be My Eyes</a>"
@@ -44,6 +53,8 @@ GUIDE_SUMMARIES = {
     "windows": "Нажмите Windows, Ctrl и Enter одновременно. Дождитесь голоса.",
     "iphone": "Попросите Siri включить VoiceOver. Для выбора смахните вправо. Для открытия дважды коснитесь экрана.",
     "android": "Если быстрый доступ к TalkBack настроен, удерживайте обе кнопки громкости. Если не получилось, откройте специальные возможности.",
+    "zoom": "Увеличьте масштаб сочетанием Ctrl и плюс. На Mac используйте Command и плюс.",
+    "label": "Сфотографируйте надпись в Be My AI. Если приложение пропустило строку, попросите прочитать именно её.",
 }
 
 
@@ -56,6 +67,26 @@ def find_recording(key):
     return (demo, True) if demo.is_file() else (None, False)
 
 GUIDES = {
+    "zoom": (
+        "Увеличить текст на сайте",
+        "мелк маленьк текст шрифт увелич масштаб крупн браузер не вижу zoom",
+        (
+            "На Windows или Linux нажмите Ctrl и плюс несколько раз. На Mac нажмите Command и плюс.",
+            "Чтобы уменьшить масштаб, нажмите Ctrl и минус. На Mac — Command и минус.",
+            "Чтобы вернуться к обычному размеру, нажмите Ctrl и ноль. На Mac — Command и ноль.",
+        ),
+        "https://support.google.com/chrome/answer/96810?hl=ru",
+    ),
+    "label": (
+        "Прочитать надпись на упаковке",
+        "прочитать мелк надпис упаковк этикетк фотограф текст камер",
+        (
+            "Откройте приложение Be My Eyes, затем раздел Be My AI.",
+            "Сфотографируйте упаковку. Дождитесь текстового описания.",
+            "Если нужная строка пропущена, задайте уточняющий вопрос или сделайте снимок ближе. В приложении также можно попросить волонтёра посмотреть на упаковку через камеру.",
+        ),
+        "https://support.bemyeyes.com/hc/en-us/articles/360005528557-Getting-started-with-Be-My-Eyes",
+    ),
     "windows": (
         "Как включить Экранный диктор в Windows",
         "windows виндовс компьютер экранн диктор narrator скринридер",
@@ -109,8 +140,14 @@ def guide_links(keys, static=False):
     return f'<ul class="guides">{items}</ul>'
 
 
-def page(title, content, base="/"):
-    return PAGE.substitute(title=escape(title), content=content.strip(), base=base).encode("utf-8")
+def page(title, content, base="/", browser_module=None):
+    config = ""
+    if browser_module:
+        files = json.dumps({"files": {f"./{browser_module}": f"./{browser_module}"}})
+        config = f' config="{escape(files, quote=True)}"'
+    return PAGE.substitute(
+        title=escape(title), content=content.strip(), base=base, keyboard_config=config
+    ).encode("utf-8")
 
 
 def homepage(static=False):
@@ -140,15 +177,15 @@ def menu_page(static=False):
         <nav id="menu" aria-label="Главное меню" tabindex="-1">
           <a id="materials" class="menu-link" href="instructions.html" aria-labelledby="instructions-label" aria-describedby="instructions-description">
             <strong id="instructions-label">Найти инструкцию</strong>
-            <span id="instructions-description">Как прочитать надпись или включить диктора на устройстве.</span>
+            <span id="instructions-description">Увеличить текст, прочитать надпись или настроить диктора.</span>
           </a>
           <a class="menu-link" href="file.html" aria-labelledby="file-label" aria-describedby="file-description">
-            <strong id="file-label">Прочитать текстовый файл</strong>
-            <span id="file-description">Выберите TXT, чтобы прочитать или прослушать главное.</span>
+            <strong id="file-label">Прочитать документ</strong>
+            <span id="file-description">Откройте Word, PDF или другой файл и прослушайте главное.</span>
           </a>
-          <a id="clips" class="menu-link" href="clips.html" aria-labelledby="clips-label" aria-describedby="clips-description">
-            <strong id="clips-label">Открыть аудиосоветы</strong>
-            <span id="clips-description">Короткие выпуски. Текст есть у каждого.</span>
+          <a class="menu-link" href="help.html" aria-labelledby="help-label" aria-describedby="help-description">
+            <strong id="help-label">Попросить о помощи</strong>
+            <span id="help-description">Найдите волонтёра или составьте запрос на доступный документ.</span>
           </a>
         </nav>
         <p class="entry-options">
@@ -159,31 +196,48 @@ def menu_page(static=False):
 
 
 def instructions_page(static=False):
-    content = """
+    route = "guides/{key}.html" if static else "/guide/{key}"
+
+    def item(title, url, keywords):
+        return f'<li data-instruction="{escape(keywords)}"><a href="{url}">{escape(title)}</a></li>'
+
+    def guide_item(key):
+        title, keywords, _, _ = GUIDES[key]
+        return item(title, route.format(key=key), keywords + " " + title)
+
+    daily = guide_item("zoom") + guide_item("label")
+    devices = "".join(guide_item(key) for key in ("windows", "iphone", "android"))
+    return page("Инструкции", f"""
         <h1 data-dialogue-prompt="Что подсказать?">Инструкции</h1>
-        <nav id="menu" aria-label="Инструкции">
-          <a class="menu-link" href="clips/etiketka.html">Прочитать мелкую надпись</a>
-          <a class="menu-link" href="#devices">Настроить скринридер</a>
-        </nav>
-        <section aria-labelledby="devices">
-          <h2 id="devices" tabindex="-1">Какое у вас устройство?</h2>
-        """ + guide_links(GUIDES, static=static)
-    if not static:
-        content += SEARCH.format(query="")
-    return page("Инструкции", content + """
+        <form id="instruction-filter" role="search" aria-label="Найти инструкцию" hidden>
+          <label for="instruction-query">Что нужно сделать?</label>
+          <div class="search-row">
+            <input type="search" id="instruction-query" maxlength="120" placeholder="Например, мелкий текст">
+            <button type="submit">Найти</button>
+            <button type="reset">Показать всё</button>
+          </div>
+        </form>
+        <p id="instruction-status" role="status"></p>
+        <section aria-labelledby="daily-tasks" data-instruction-group>
+          <h2 id="daily-tasks">На каждый день</h2>
+          <ul class="guides">{daily}</ul>
+        </section>
+        <section aria-labelledby="devices" data-instruction-group>
+          <h2 id="devices" tabindex="-1">Настроить экранный диктор</h2>
+          <ul class="guides">{devices}</ul>
         </section>
         <p><a class="back-link" href="menu.html">Вернуться к меню</a></p>
-        """, base="./" if static else "/")
+        """, base="./" if static else "/", browser_module="instruction_search.py")
 
 
 def file_page(static=False):
     return page("Главное из файла", """
-        <h1 data-dialogue-prompt="Что прочитать?">Главное из текстового файла</h1>
-        <p id="file-fallback">Для выбора файла нужен режим Python в браузере.</p>
+        <h1 data-dialogue-prompt="Что прочитать?">Главное из документа</h1>
+        <p id="file-fallback">Подготовка чтения файлов в браузере…</p>
         <form id="file-form" hidden>
-          <label for="text-file">Текстовый файл</label>
-          <input id="text-file" type="file" accept=".txt,text/plain" aria-describedby="file-help" required>
-          <p id="file-help">Формат TXT, до 256 КБ. Файл читается в браузере.</p>
+          <label for="text-file">Выберите документ</label>
+          <input id="text-file" type="file" accept=".docx,.pdf,.odt,.rtf,.txt,.md,.csv" aria-describedby="file-help" required>
+          <p id="file-help">DOCX (Word), PDF, ODT, RTF, TXT, Markdown и CSV. До 8 МБ. Файл остаётся в браузере.</p>
           <button type="submit">Выделить главное</button>
         </form>
         <p id="file-status" role="status"></p>
@@ -191,6 +245,36 @@ def file_page(static=False):
           <h2 id="summary-heading" tabindex="-1">Вот главное</h2>
           <p id="file-summary"></p>
           <button type="button" data-read="file-summary" hidden>Озвучить главное</button>
+          <details>
+            <summary>Показать извлечённый текст</summary>
+            <pre id="file-full-text" class="document-text"></pre>
+          </details>
+        </section>
+        <p><a class="back-link" href="menu.html">Вернуться к меню</a></p>
+        """, base="./" if static else "/", browser_module="document_text.py")
+
+
+def help_page(static=False):
+    return page("Помощь", f"""
+        <h1 data-dialogue-prompt="Чем помочь?">Попросить о помощи</h1>
+        <section aria-labelledby="volunteer">
+          <h2 id="volunteer">Если нужно, чтобы кто-то посмотрел</h2>
+          <p>В приложении Be My Eyes можно позвонить волонтёру и показать надпись или предмет через камеру.</p>
+          <p>{LABEL_SOURCE}</p>
+        </section>
+        <section aria-labelledby="request">
+          <h2 id="request">Если нужен доступный документ</h2>
+          <form id="help-form" hidden>
+            <label for="document-name">Название документа или ссылки (необязательно)</label>
+            <input id="document-name" type="text" maxlength="120">
+            <button type="submit">Подготовить сообщение</button>
+          </form>
+          <div id="help-message">
+            <label for="help-text">Текст запроса</label>
+            <textarea id="help-text" rows="5" readonly>Здравствуйте! Можно получить документ в доступном формате? Подойдёт DOCX или TXT, в котором текст можно выделить и прочитать скринридером. Спасибо!</textarea>
+            <button type="button" id="copy-help" hidden>Скопировать сообщение</button>
+            <p id="help-status" role="status"></p>
+          </div>
         </section>
         <p><a class="back-link" href="menu.html">Вернуться к меню</a></p>
         """, base="./" if static else "/")
@@ -218,8 +302,8 @@ def guide_page(key, base="/"):
         <button type="button" data-read="guide-summary" hidden>Озвучить главное</button>
         <h2>По шагам</h2>
         <ol class="steps">{items}</ol>
-        <p><a href="{escape(source)}">Инструкция производителя</a></p>
-        <p><a href="{base}instructions.html#devices">Все инструкции по устройствам</a></p>
+        <p><a href="{escape(source)}">Официальная справка</a></p>
+        <p><a href="{base}instructions.html">Вернуться к инструкциям</a></p>
         """, base=base)
 
 
@@ -289,10 +373,17 @@ def build_static():
     write_page(output / "menu.html", menu_page(static=True))
     write_page(output / "instructions.html", instructions_page(static=True))
     write_page(output / "file.html", file_page(static=True))
+    write_page(output / "help.html", help_page(static=True))
     write_page(output / "clips.html", clips_page(static=True))
     write_page(output / "intro.html", clip_page("intro", base="./"))
     (output / "styles.css").write_bytes(CSS)
     (output / "keyboard.py").write_bytes(KEYBOARD_PY)
+    for filename, source in BROWSER_MODULES.items():
+        (output / filename).write_bytes(source)
+    vendor_output = output / "vendor"
+    vendor_output.mkdir(exist_ok=True)
+    for wheel in VENDOR_WHEELS:
+        (vendor_output / wheel).write_bytes((VENDOR_DIR / wheel).read_bytes())
 
     audio_dir = output / "audio"
     audio_dir.mkdir(exist_ok=True)
@@ -303,21 +394,8 @@ def build_static():
 
 
 def search_guides(query):
-    words = re.findall(r"[^\W_]+", query.casefold().replace("ё", "е"))
-    filler = {"как", "в", "на", "и", "мне", "мой", "моем", "для"}
-    words = [
-        word for word in words
-        if word not in filler and not word.startswith(("включ", "отключ", "запус", "запущ"))
-    ]
-    matches = []
-    for key, (_, keywords, _, _) in GUIDES.items():
-        terms = keywords.split()
-        if not words or all(
-            any(term.startswith(word) or (len(term) >= 5 and word.startswith(term)) for term in terms)
-            for word in words
-        ):
-            matches.append(key)
-    return matches
+    words = query_words(query)
+    return [key for key, (title, keywords, _, _) in GUIDES.items() if matches_query(words, keywords + " " + title)]
 
 
 class Site(BaseHTTPRequestHandler):
@@ -334,6 +412,8 @@ class Site(BaseHTTPRequestHandler):
             body = instructions_page()
         elif request.path == "/file.html":
             body = file_page()
+        elif request.path == "/help.html":
+            body = help_page()
         elif request.path == "/clips.html":
             body = clips_page()
         elif request.path == "/intro.html":
@@ -364,6 +444,12 @@ class Site(BaseHTTPRequestHandler):
         elif request.path == "/keyboard.py":
             body = KEYBOARD_PY
             content_type = "text/plain; charset=utf-8"
+        elif request.path.removeprefix("/") in BROWSER_MODULES:
+            body = BROWSER_MODULES[request.path.removeprefix("/")]
+            content_type = "text/plain; charset=utf-8"
+        elif request.path.startswith("/vendor/") and request.path[8:] in VENDOR_WHEELS:
+            body = (VENDOR_DIR / request.path[8:]).read_bytes()
+            content_type = "application/zip"
         else:
             status = HTTPStatus.NOT_FOUND
             body = page("Страница не найдена", '<h1>Страница не найдена</h1><p><a href="/">Все инструкции по устройствам</a></p>')
