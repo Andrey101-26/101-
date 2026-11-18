@@ -17,7 +17,7 @@ INTRO_AUDIO = ROOT / "intro.wav"
 
 GUIDES = {
     "windows": (
-        "Включить Экранный диктор в Windows",
+        "Как включить Экранный диктор в Windows",
         "windows виндовс компьютер экранн диктор narrator скринридер",
         (
             "Одновременно нажмите клавиши Windows, Ctrl и Enter. Клавиша Windows обычно находится в нижнем ряду рядом с Alt.",
@@ -27,7 +27,7 @@ GUIDES = {
         "https://support.microsoft.com/en-us/accessibility/windows/narrator/chapter-1-introducing-narrator",
     ),
     "iphone": (
-        "Включить VoiceOver на iPhone",
+        "Как включить VoiceOver на iPhone",
         "iphone айфон ios айос эппл apple телефон voiceover войсовер скринридер",
         (
             "Если Siri уже настроена, вызовите её и скажите: «Включи VoiceOver».",
@@ -37,7 +37,7 @@ GUIDES = {
         "https://support.apple.com/ru-ru/guide/iphone/iph3e2e415f/ios",
     ),
     "android": (
-        "Включить TalkBack на Android",
+        "Как включить TalkBack на Android",
         "android андроид телефон talkback толкбэк талкбэк скринридер",
         (
             "Если быстрый доступ к TalkBack настроен, нажмите обе кнопки громкости одновременно и удерживайте несколько секунд. Дождитесь голосового сообщения.",
@@ -76,15 +76,26 @@ def page(title, content, base="/"):
 def homepage(static=False):
     content = """
         <h1>Помощь с экранным доступом</h1>
-        <p>Найдите, как включить экранный доступ и выполнить первые действия без мыши.</p>
+        <p>Скринридер можно настроить по инструкции или сразу перейти к материалам сайта.</p>
         <nav class="entry-options" aria-label="Как начать">
           <a href="#devices">Продолжить в тишине</a>
           <a href="intro.html">Вступление с озвучкой</a>
         </nav>
-        <h2 id="devices" tabindex="-1">Выберите устройство</h2>
+        <section aria-labelledby="devices">
+          <h2 id="devices" tabindex="-1">Настройка скринридера по желанию</h2>
+          <p class="entry-options"><a href="#materials">Продолжить без настройки диктора</a></p>
         """ + guide_links(GUIDES, static=static)
     if not static:
         content += SEARCH.format(query="")
+    content += """
+        </section>
+        <section aria-labelledby="materials">
+          <h2 id="materials" tabindex="-1">Инструкции на каждый день</h2>
+          <h3>Как прочитать мелкую надпись на упаковке</h3>
+          <p>В приложении Be My Eyes откройте Be My AI и сфотографируйте надпись. Описание появится в чате. Если не хватило деталей, попросите прочитать конкретную строку или сделайте снимок ближе.</p>
+          <p><a href="https://support.bemyeyes.com/hc/en-us/articles/360005528557-Getting-started-with-Be-My-Eyes">Как установить и использовать Be My Eyes</a></p>
+        </section>
+        """
     return page("Инструкции по скринридерам", content, base="./" if static else "/")
 
 
