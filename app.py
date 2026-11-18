@@ -1,5 +1,6 @@
 """Run with python app.py. The site uses only Python's standard library."""
 
+import argparse
 import os
 import re
 from html import escape
@@ -10,7 +11,7 @@ from string import Template
 from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parent
-PAGE = Template((ROOT / "index.html").read_text(encoding="utf-8"))
+PAGE = Template((ROOT / "page.html").read_text(encoding="utf-8"))
 CSS = (ROOT / "styles.css").read_bytes()
 
 GUIDES = {
@@ -58,13 +59,47 @@ SEARCH = """
 """
 
 
-def guide_links(keys):
-    items = "".join(f'<li><a href="/guide/{key}">{escape(GUIDES[key][0])}</a></li>' for key in keys)
+def guide_links(keys, static=False):
+    route = "guides/{key}.html" if static else "/guide/{key}"
+    items = "".join(
+        f'<li><a href="{route.format(key=key)}">{escape(GUIDES[key][0])}</a></li>'
+        for key in keys
+    )
     return f'<ul class="guides">{items}</ul>'
 
 
-def page(title, content):
-    return PAGE.substitute(title=escape(title), content=content).encode("utf-8")
+def page(title, content, base="/"):
+    return PAGE.substitute(title=escape(title), content=content.strip(), base=base).encode("utf-8")
+
+
+def homepage(static=False):
+    content = """
+        <h1>Помощь с экранным доступом</h1>
+        <p>Найдите, как включить экранный доступ и выполнить первые действия без мыши.</p>
+        <h2>Выберите устройство</h2>
+        """ + guide_links(GUIDES, static=static)
+    if not static:
+        content += SEARCH.format(query="")
+    return page("Инструкции по скринридерам", content, base="./" if static else "/")
+
+
+def guide_page(key, base="/"):
+    title, _, steps, source = GUIDES[key]
+    items = "".join(f"<li>{escape(step)}</li>" for step in steps)
+    return page(title, f"""
+        <h1>{escape(title)}</h1>
+        <ol class="steps">{items}</ol>
+        <p><a href="{escape(source)}">Инструкция производителя</a></p>
+        <p><a href="{base}">Все инструкции по устройствам</a></p>
+        """, base=base)
+
+
+def build_static():
+    directory = ROOT / "guides"
+    directory.mkdir(exist_ok=True)
+    for key in GUIDES:
+        (directory / f"{key}.html").write_bytes(guide_page(key, base="../"))
+    (ROOT / "index.html").write_bytes(homepage(static=True))
 
 
 def search_guides(query):
@@ -92,11 +127,7 @@ class Site(BaseHTTPRequestHandler):
         content_type = "text/html; charset=utf-8"
 
         if request.path == "/":
-            body = page("Инструкции по скринридерам", """
-                <h1>Помощь с экранным доступом</h1>
-                <p>Найдите, как включить экранный доступ и выполнить первые действия без мыши.</p>
-                <h2>Выберите устройство</h2>
-                """ + guide_links(GUIDES) + SEARCH.format(query=""))
+            body = homepage()
         elif request.path == "/search":
             query = parse_qs(request.query).get("q", [""])[0].strip()[:120]
             matches = search_guides(query)
@@ -106,14 +137,7 @@ class Site(BaseHTTPRequestHandler):
                 results = '<p>Инструкция по этому запросу не найдена.</p><p><a href="/">Все инструкции по устройствам</a></p>'
             body = page("Результаты поиска", f"<h1>Результаты поиска</h1>{results}" + SEARCH.format(query=escape(query)))
         elif request.path.startswith("/guide/") and request.path[7:] in GUIDES:
-            title, _, steps, source = GUIDES[request.path[7:]]
-            items = "".join(f"<li>{escape(step)}</li>" for step in steps)
-            body = page(title, f"""
-                <h1>{escape(title)}</h1>
-                <ol class="steps">{items}</ol>
-                <p><a href="{escape(source)}">Инструкция производителя</a></p>
-                <p><a href="/">Все инструкции по устройствам</a></p>
-                """)
+            body = guide_page(request.path[7:])
         elif request.path == "/styles.css":
             body = CSS
             content_type = "text/css; charset=utf-8"
@@ -128,7 +152,7 @@ class Site(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-if __name__ == "__main__":
+def serve():
     address = ("127.0.0.1", int(os.environ.get("PORT", "8000")))
     with ThreadingHTTPServer(address, Site) as server:
         print(f"Голос и звук: http://{address[0]}:{address[1]}/", flush=True)
@@ -136,3 +160,12 @@ if __name__ == "__main__":
             server.serve_forever()
         except KeyboardInterrupt:
             pass
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Голос и звук")
+    parser.add_argument("--build-static", action="store_true", help="Собрать страницы для GitHub Pages.")
+    if parser.parse_args().build_static:
+        build_static()
+    else:
+        serve()
