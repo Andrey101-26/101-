@@ -14,9 +14,10 @@ PAGE_TEMPLATE = r"""<!doctype html>
   <header>
     <div class="shell">
       <a class="brand" href="$base">Голос и звук<span class="sr-only">, главная</span></a>
+      <a class="urgent-link" href="${base}phone.html" aria-label="Экстренная помощь в России">Экстренная помощь</a>
       <div id="keyboard-mode" hidden>
         <details id="site-settings">
-          <summary>Настройки</summary>
+          <summary aria-label="Настройки" aria-keyshortcuts="Control+Shift+F2" aria-describedby="settings-shortcut" data-say="Настройки. Control, Shift и F2.">Настройки <kbd aria-hidden="true">Ctrl + Shift + F2</kbd></summary>
           <div class="settings-panel">
             <div role="group" aria-labelledby="voice-label">
               <p id="voice-label" class="settings-label">Голос диктора</p>
@@ -33,6 +34,7 @@ PAGE_TEMPLATE = r"""<!doctype html>
             <button id="settings-close" type="button">Закрыть настройки</button>
           </div>
         </details>
+        <span id="settings-shortcut" class="sr-only">Чтобы открыть или закрыть настройки, нажмите Ctrl, Shift и F2 одновременно.</span>
         <button id="keyboard-toggle" type="button" aria-pressed="false" aria-describedby="keyboard-help">Озвучить меню</button>
         <p id="keyboard-help" class="sr-only">Стрелки вверх и вниз выбирают пункт. Enter открывает. Escape останавливает речь.</p>
         <p id="keyboard-status" role="status"></p>
@@ -57,6 +59,7 @@ SITE_STYLES = r""":root {
   --accent: #173e31;
   --button-text: #fff;
   --focus: #004ab3;
+  --urgent: #8d2025;
   font: 112.5%/1.5 system-ui, "Segoe UI", sans-serif;
 }
 :root[data-theme="dark"] {
@@ -69,6 +72,7 @@ SITE_STYLES = r""":root {
   --accent: #c7ecdb;
   --button-text: #16281f;
   --focus: #ffdf70;
+  --urgent: #ffb7b9;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
@@ -81,6 +85,7 @@ SITE_STYLES = r""":root {
     --accent: #c7ecdb;
     --button-text: #16281f;
     --focus: #ffdf70;
+    --urgent: #ffb7b9;
   }
 }
 * { box-sizing: border-box; }
@@ -91,11 +96,14 @@ header { border-bottom: 1px solid var(--line); background: var(--panel); }
 header .shell { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .4rem 1rem; padding-block: .65rem; }
 .shell { width: min(100% - 2rem, 36rem); margin-inline: auto; }
 .brand { display: inline-flex; align-items: center; min-height: 44px; font-weight: 800; text-decoration: none; }
+.urgent-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--urgent); font-weight: 750; }
+.emergency-numbers li:first-child a { border: 2px solid var(--urgent); color: var(--urgent); }
 #keyboard-mode { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem .7rem; }
 [hidden] { display: none !important; }
 #keyboard-mode details { max-width: 100%; }
 #keyboard-mode:has(details[open]), #keyboard-mode details[open] { flex-basis: 100%; }
 #keyboard-mode summary { cursor: pointer; min-height: 44px; padding: .45rem .7rem; border: 1px solid var(--line); border-radius: .4rem; }
+#keyboard-mode kbd { margin-inline-start: .35rem; color: var(--muted); font: inherit; font-size: .8em; white-space: nowrap; }
 .settings-panel { display: grid; gap: .75rem; padding: .8rem; margin-top: .4rem; border: 1px solid var(--line); border-radius: .4rem; }
 .settings-panel > button { justify-self: start; }
 .settings-label { margin: 0 0 .4rem; font-weight: 700; }
@@ -132,6 +140,8 @@ select { color: var(--ink); background: var(--panel); }
 button { color: var(--button-text); background: var(--accent); cursor: pointer; font-weight: 700; }
 #file-form { display: grid; gap: .55rem; justify-items: start; }
 #file-status:empty { margin: 0; }
+#dial-status:empty { margin: 0; }
+#document-reading-status:empty { margin: 0; }
 #instruction-status:empty, #help-status:empty { margin: 0; }
 #help-form { display: grid; gap: .55rem; justify-items: start; margin-bottom: .8rem; }
 #help-text { display: block; width: 100%; max-width: 100%; font: inherit; padding: .6rem; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: .4rem; margin-bottom: .55rem; }

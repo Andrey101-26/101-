@@ -30,6 +30,14 @@ LABEL_SOURCE = (
     '<a href="https://support.bemyeyes.com/hc/en-us/articles/360005528557-Getting-started-with-Be-My-Eyes">'
     "Как установить и использовать Be My Eyes</a>"
 )
+EMERGENCY_SOURCE = "https://60.mchs.gov.ru/deyatelnost/press-centr/novosti/5827639"
+EMERGENCY_NUMBERS = (
+    ("112", "Единый номер экстренных служб", "Один, один, два"),
+    ("101", "Пожарная охрана", "Один, ноль, один"),
+    ("102", "Полиция", "Один, ноль, два"),
+    ("103", "Скорая помощь", "Один, ноль, три"),
+    ("104", "Аварийная газовая служба", "Один, ноль, четыре"),
+)
 
 CLIPS = {
     "etiketka": (
@@ -187,6 +195,10 @@ def menu_page(static=False):
             <strong id="help-label">Попросить о помощи</strong>
             <span id="help-description">Найдите волонтёра или составьте запрос на доступный документ.</span>
           </a>
+          <a class="menu-link" href="phone.html#dial" aria-labelledby="dial-label" aria-describedby="dial-description">
+            <strong id="dial-label">Набрать номер</strong>
+            <span id="dial-description">Введите номер с клавиатуры и откройте его в приложении для звонков.</span>
+          </a>
         </nav>
         <p class="entry-options">
           <a class="back-link" href="#menu" data-quiet>Продолжить в тишине</a>
@@ -246,8 +258,11 @@ def file_page(static=False):
           <p id="file-summary"></p>
           <button type="button" data-read="file-summary" hidden>Озвучить главное</button>
           <details>
-            <summary>Показать извлечённый текст</summary>
-            <pre id="file-full-text" class="document-text"></pre>
+            <summary>Прочитать документ целиком</summary>
+            <button type="button" data-read="file-full-text" data-read-full hidden>Озвучить весь текст</button>
+            <button type="button" id="stop-document" hidden disabled>Остановить чтение</button>
+            <p id="document-reading-status" role="status"></p>
+            <div id="file-full-text" class="document-text"></div>
           </details>
         </section>
         <p><a class="back-link" href="menu.html">Вернуться к меню</a></p>
@@ -257,6 +272,7 @@ def file_page(static=False):
 def help_page(static=False):
     return page("Помощь", f"""
         <h1 data-dialogue-prompt="Чем помочь?">Попросить о помощи</h1>
+        <p><a class="urgent-link" href="phone.html">Экстренная помощь в России</a></p>
         <section aria-labelledby="volunteer">
           <h2 id="volunteer">Если нужно, чтобы кто-то посмотрел</h2>
           <p>В приложении Be My Eyes можно позвонить волонтёру и показать надпись или предмет через камеру.</p>
@@ -275,6 +291,34 @@ def help_page(static=False):
             <button type="button" id="copy-help" hidden>Скопировать сообщение</button>
             <p id="help-status" role="status"></p>
           </div>
+        </section>
+        <p><a class="back-link" href="menu.html">Вернуться к меню</a></p>
+        """, base="./" if static else "/")
+
+
+def phone_page(static=False):
+    links = "".join(
+        f'<li><a href="tel:{number}" data-say="{spoken}. {service}.">{number} — {service}</a></li>'
+        for number, service, spoken in EMERGENCY_NUMBERS
+    )
+    return page("Экстренная помощь и звонки", f"""
+        <h1 data-dialogue-prompt="Куда позвонить?">Экстренная помощь в России</h1>
+        <ul class="guides emergency-numbers">{links}</ul>
+        <p>Ссылка передаёт номер приложению для звонков. Если оно не открылось, наберите номер на телефоне.</p>
+        <p><a href="{EMERGENCY_SOURCE}">Номера экстренных служб на сайте МЧС</a></p>
+        <section aria-labelledby="dial">
+          <h2 id="dial" tabindex="-1">Набрать другой номер</h2>
+          <form id="dial-form" hidden>
+            <label for="phone-number">Номер телефона</label>
+            <div class="search-row">
+              <input id="phone-number" type="tel" inputmode="tel" maxlength="40"
+                aria-describedby="dial-hint" autocomplete="off" required>
+              <button type="submit">Проверить номер</button>
+            </div>
+            <p id="dial-hint">От 3 до 15 цифр. Для международного номера начните с плюса.</p>
+          </form>
+          <p id="dial-status" role="status"></p>
+          <p><a id="dial-link" class="back-link" hidden>Позвонить</a></p>
         </section>
         <p><a class="back-link" href="menu.html">Вернуться к меню</a></p>
         """, base="./" if static else "/")
@@ -374,6 +418,7 @@ def build_static():
     write_page(output / "instructions.html", instructions_page(static=True))
     write_page(output / "file.html", file_page(static=True))
     write_page(output / "help.html", help_page(static=True))
+    write_page(output / "phone.html", phone_page(static=True))
     write_page(output / "clips.html", clips_page(static=True))
     write_page(output / "intro.html", clip_page("intro", base="./"))
     (output / "styles.css").write_bytes(CSS)
@@ -414,6 +459,8 @@ class Site(BaseHTTPRequestHandler):
             body = file_page()
         elif request.path == "/help.html":
             body = help_page()
+        elif request.path == "/phone.html":
+            body = phone_page()
         elif request.path == "/clips.html":
             body = clips_page()
         elif request.path == "/intro.html":

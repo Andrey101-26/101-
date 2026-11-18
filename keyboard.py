@@ -6,6 +6,7 @@ import re
 import sys
 from collections import Counter
 from pathlib import Path
+from textwrap import wrap
 
 from js import document, window
 from pyodide.ffi import create_proxy
@@ -33,11 +34,11 @@ STOP_WORDS = set(
 
 
 def extract_summary(text):
-    parts = [
+    parts = list(dict.fromkeys(
         " ".join(part.split())
         for part in re.split(r"(?<=[.!?…])\s+|[\r\n]+", text.strip())
         if re.search(r"\w", part)
-    ]
+    ))
     if not parts:
         return ""
     words = [
@@ -95,6 +96,10 @@ file_reader = None
 file_generation = 0
 file_name = ""
 package_loads = {}
+STOP_DOCUMENT = document.getElementById("stop-document")
+DOCUMENT_STATUS = document.getElementById("document-reading-status")
+document_chunks = None
+reading_generation = 0
 
 
 def refresh_voices(event=None):
@@ -177,8 +182,24 @@ def speech_error(event):
 
 
 def stop_speech(*_):
+    global document_chunks, reading_generation
+    if document_chunks is not None:
+        document_chunks = None
+        reading_generation += 1
+        STOP_DOCUMENT.disabled = True
+        DOCUMENT_STATUS.textContent = "Чтение остановлено."
     if SPEAKER and UTTERANCE:
         SPEAKER.cancel()
+
+
+def make_utterance(text):
+    message = UTTERANCE.new(text)
+    selected = voices.get(selected_voice)
+    message.lang = selected.lang if selected else "ru-RU"
+    if selected:
+        message.voice = selected
+    message.addEventListener("error", report_speech_error)
+    return message
 
 
 def speak(text):
@@ -188,13 +209,46 @@ def speak(text):
     clips = document.querySelectorAll("audio")
     if not text or any(not clips.item(i).paused for i in range(clips.length)):
         return
-    message = UTTERANCE.new(text)
-    selected = voices.get(selected_voice)
-    message.lang = selected.lang if selected else "ru-RU"
-    if selected:
-        message.voice = selected
-    message.addEventListener("error", report_speech_error)
+    SPEAKER.speak(make_utterance(text))
+
+
+def read_next_part(event=None):
+    global document_chunks
+    if document_chunks is None or (event and event.target.golosReading != reading_generation):
+        return
+    text = next(document_chunks, "")
+    if not text:
+        document_chunks = None
+        STOP_DOCUMENT.disabled = True
+        DOCUMENT_STATUS.textContent = "Чтение завершено."
+        return
+    message = make_utterance(text)
+    message.golosReading = reading_generation
+    message.addEventListener("end", on_read_next_part)
+    message.addEventListener("error", on_document_error)
     SPEAKER.speak(message)
+
+
+def document_reading_error(event):
+    if document_chunks is not None and event.target.golosReading == reading_generation:
+        stop_speech()
+        DOCUMENT_STATUS.textContent = "Не удалось продолжить озвучивание. Полный текст доступен ниже."
+
+
+def speak_document(text):
+    global document_chunks
+    if not SPEAKER or not UTTERANCE or not text:
+        return
+    stop_speech()
+    document_chunks = iter(wrap(" ".join(text.split()), width=170, break_on_hyphens=False))
+    STOP_DOCUMENT.disabled = False
+    DOCUMENT_STATUS.textContent = "Читаю документ целиком."
+    read_next_part()
+
+
+def stop_document_reading(event):
+    stop_speech()
+    document.querySelector("[data-read-full]").focus()
 
 
 def update_mode():
@@ -231,9 +285,9 @@ def quiet_mode(event):
 def speak_focus(event):
     global question_pending
     target = event.target
-    if not enabled or not target.matches(CONTROLS + ", h2[tabindex]"):
+    if not enabled or document_chunks is not None or not target.matches(CONTROLS + ", h2[tabindex]"):
         return
-    label = target.getAttribute("aria-label")
+    label = target.getAttribute("data-say") or target.getAttribute("aria-label")
     labelled_by = target.getAttribute("aria-labelledby")
     if not label and labelled_by:
         label = " ".join(document.getElementById(key).textContent for key in labelled_by.split())
@@ -248,9 +302,18 @@ def speak_focus(event):
 
 
 def move_focus(event):
-    if event.defaultPrevented or any(
-        (event.altKey, event.ctrlKey, event.metaKey, event.shiftKey)
-    ):
+    if event.defaultPrevented:
+        return
+    if event.key == "F2" and event.ctrlKey and event.shiftKey and not (event.altKey or event.metaKey):
+        event.preventDefault()
+        if not event.repeat:
+            if SETTINGS.open:
+                close_settings()
+            else:
+                SETTINGS.open = True
+                SETTINGS_SUMMARY.focus()
+        return
+    if any((event.altKey, event.ctrlKey, event.metaKey, event.shiftKey)):
         return
     active = document.activeElement
     in_settings = SETTINGS.open and SETTINGS.contains(active)
@@ -282,8 +345,13 @@ def move_focus(event):
 
 
 def read_excerpt(event):
-    target = document.getElementById(event.currentTarget.getAttribute("data-read"))
-    speak(target.textContent.strip())
+    button = event.currentTarget
+    target = document.getElementById(button.getAttribute("data-read"))
+    text = target.textContent.strip()
+    if button.hasAttribute("data-read-full"):
+        speak_document(text)
+    else:
+        speak(text)
 
 
 def speak_entry(*_):
@@ -369,6 +437,7 @@ def clear_file_result(event=None):
     document.getElementById("file-full-text").textContent = ""
     file_status.textContent = ""
     stop_speech()
+    DOCUMENT_STATUS.textContent = ""
 
 
 def read_file(event):
@@ -442,6 +511,33 @@ def copy_help(event):
         select_help()
 
 
+def normalize_number(value):
+    number = re.sub(r"[\s().\-–—]", "", value.strip())
+    return number if re.fullmatch(r"\+?[0-9]{3,15}", number) else ""
+
+
+def clear_dial_link(event=None):
+    dial_link.hidden = True
+    dial_link.removeAttribute("href")
+    dial_status.textContent = ""
+
+
+def prepare_dial_link(event):
+    event.preventDefault()
+    clear_dial_link()
+    number = normalize_number(dial_input.value)
+    if not number:
+        dial_status.textContent = "Проверьте номер. Введите от 3 до 15 цифр и, если нужно, плюс в начале."
+        dial_input.focus()
+        return
+    dial_link.href = "tel:" + number
+    dial_link.textContent = "Позвонить: " + number
+    spoken = " ".join(digit if digit != "+" else "плюс" for digit in number)
+    dial_link.setAttribute("data-say", "Позвонить. " + spoken)
+    dial_link.hidden = False
+    dial_link.focus()
+
+
 report_speech_error = create_proxy(speech_error)
 TOGGLE.addEventListener("click", create_proxy(toggle_mode))
 VOICE_CHOICES.addEventListener("click", create_proxy(choose_voice))
@@ -468,6 +564,11 @@ if SPEAKER and UTTERANCE:
         button = buttons.item(index)
         button.addEventListener("click", on_read_excerpt)
         button.hidden = False
+    if STOP_DOCUMENT:
+        on_read_next_part = create_proxy(read_next_part)
+        on_document_error = create_proxy(document_reading_error)
+        STOP_DOCUMENT.addEventListener("click", create_proxy(stop_document_reading))
+        STOP_DOCUMENT.hidden = False
 refresh_voices()
 preferred_theme = stored(THEME_KEY, persistent=True)
 apply_theme(preferred_theme if preferred_theme in ("light", "dark") else "system")
@@ -508,5 +609,14 @@ if help_form:
     help_button.addEventListener("click", create_proxy(copy_help))
     help_form.hidden = False
     help_button.hidden = False
+
+dial_form = document.getElementById("dial-form")
+if dial_form:
+    dial_input = document.getElementById("phone-number")
+    dial_status = document.getElementById("dial-status")
+    dial_link = document.getElementById("dial-link")
+    dial_form.addEventListener("submit", create_proxy(prepare_dial_link))
+    dial_input.addEventListener("input", create_proxy(clear_dial_link))
+    dial_form.hidden = False
 update_mode()
 PANEL.hidden = False
